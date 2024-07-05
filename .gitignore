@@ -2,12 +2,11 @@
 .idea/*
 .idea/workspace.xml
 /ProG/__pycache__
+/ProG/Experiment/*
 *.pyc
 .DS_Store
 /data
 /dataset
 /Docs
-/Users/jingxu_cispa/Code/ProG/Experiment
-/Experiment
-Experiment/
+/Experiment/*
 *.pkl
