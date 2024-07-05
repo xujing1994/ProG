@@ -12,6 +12,7 @@ from prompt_graph.evaluation import GpromptEva, AllInOneEva
 import pickle
 import os
 from prompt_graph.utils import process
+import ipdb
 warnings.filterwarnings("ignore")
 
 class NodeTask(BaseTask):
@@ -29,7 +30,6 @@ class NodeTask(BaseTask):
                   self.graphs_list = graphs_list
                   self.answering =  torch.nn.Sequential(torch.nn.Linear(self.hid_dim, self.output_dim),
                                                 torch.nn.Softmax(dim=1)).to(self.device) 
-            
             self.create_few_data_folder()
 
       def create_few_data_folder(self):
@@ -195,7 +195,7 @@ class NodeTask(BaseTask):
 
             return total_loss / len(train_loader), mean_centers
       
-      def run(self):
+      def run(self, flag='target'):
             test_accs = []
             f1s = []
             rocs = []
@@ -204,7 +204,11 @@ class NodeTask(BaseTask):
             # for all-in-one and Gprompt we use k-hop subgraph, but when wo search for best parameter, we load inducedd graph once cause it costs too much time
             # if (self.search == False) and (self.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']):
             #       self.load_induced_graph()
-            for i in range(1, 6):
+            if self.prompt_type == 'All-in-one':
+                  self.answer_epoch = 50
+                  self.prompt_epoch = 50
+                  self.epochs = int(self.epochs/self.answer_epoch)
+            for i in range(self.seed, self.seed+1): # specify the seed
                   self.initialize_gnn()
                   self.initialize_prompt()
                   self.initialize_optimizer()
@@ -214,6 +218,24 @@ class NodeTask(BaseTask):
                   print("true",i,train_lbls)
                   idx_test = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/test_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).to(self.device)
                   test_lbls = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/test_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().to(self.device)
+
+                  # 1. split idx_train, train_lbls, idx_test, test_lbls into two equal parts as the target/shadow datasets
+                  if flag == 'target':
+                        idx_train = idx_train[:int(len(idx_train)/2)]
+                        train_lbls = train_lbls[:int(len(train_lbls)/2)]
+                        idx_test = idx_test[:int(len(idx_test)/2)]
+                        test_lbls = test_lbls[:int(len(test_lbls)/2)]
+                  elif flag == 'shadow':
+                        idx_train = idx_train[int(len(idx_train)/2):]
+                        train_lbls = train_lbls[int(len(train_lbls)/2):]
+                        idx_test = idx_test[int(len(idx_test)/2):]
+                        test_lbls = test_lbls[int(len(test_lbls)/2):]
+                        # idx_all = torch.cat((idx_train, idx_test), dim=0)
+                        # all_lbls = torch.cat((train_lbls, test_lbls), dim=0)
+                        # idx_train = idx_all[:int(len(idx_all)/2)]
+                        # train_lbls = all_lbls[:int(len(all_lbls)/2)]
+                        # idx_test = idx_all[int(len(idx_all)/2):]
+                        # test_lbls = all_lbls[int(len(all_lbls)/2):]
 
                   # GPPT prompt initialtion
                   if self.prompt_type == 'GPPT':
@@ -250,12 +272,13 @@ class NodeTask(BaseTask):
                   best = 1e9
                   cnt_wait = 0
                   best_loss = 1e9
-                  if self.prompt_type == 'All-in-one':
-                        self.answer_epoch = 20
-                        self.prompt_epoch = 20
-                        self.epochs = int(self.epochs/self.answer_epoch)
+                  # if self.prompt_type == 'All-in-one':
+                  #       self.answer_epoch = 20
+                  #       self.prompt_epoch = 20
+                  #       self.epochs = int(self.epochs/self.answer_epoch)
 
-
+                  # if flag == "shadow":
+                  #       self.epochs = 100
                   for epoch in range(1, self.epochs):
                         t0 = time.time()
 
@@ -272,20 +295,22 @@ class NodeTask(BaseTask):
                         elif self.prompt_type == 'MultiGprompt':
                               loss = self.MultiGpromptTrain(pretrain_embs, train_lbls, idx_train)
 
-
-                        if loss < best:
-                              best = loss
-                              # best_t = epoch
-                              cnt_wait = 0
-                              # torch.save(model.state_dict(), args.save_name)
-                        else:
-                              cnt_wait += 1
-                              if cnt_wait == patience:
-                                    print('-' * 100)
-                                    print('Early stopping at '+str(epoch) +' eopch!')
-                                    break
+                        # comment early stopping
+                        # if loss < best:
+                        #       best = loss
+                        #       # best_t = epoch
+                        #       cnt_wait = 0
+                        #       # torch.save(model.state_dict(), args.save_name)
+                        # else:
+                        #       cnt_wait += 1
+                        #       if cnt_wait == patience:
+                        #             print('-' * 100)
+                        #             print('Early stopping at '+str(epoch) +' eopch!')
+                        #             break
                         
                         print("Epoch {:03d} |  Time(s) {:.4f} | Loss {:.4f}  ".format(epoch, time.time() - t0, loss))
+                  # train the attack model if flag == 'shadow'
+                  
                   import math
                   if not math.isnan(loss):
                         batch_best_loss.append(loss)
@@ -295,9 +320,10 @@ class NodeTask(BaseTask):
                         elif self.prompt_type == 'GPPT':
                               test_acc, f1, roc, prc = GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device)                
                         elif self.prompt_type == 'All-in-one':
-                              test_acc, f1, roc, prc = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)                                           
+                              test_acc, f1, roc, prc, _ = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)                                           
                         elif self.prompt_type in ['GPF', 'GPF-plus']:
-                              test_acc, f1, roc, prc = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                         
+                              # ipdb.set_trace()
+                              test_acc, f1, roc, prc, _ = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                         
                         elif self.prompt_type =='Gprompt':
                               test_acc, f1, roc, prc = GpromptEva(test_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
                         elif self.prompt_type == 'MultiGprompt':
@@ -325,10 +351,10 @@ class NodeTask(BaseTask):
             print(" Final best | AUROC {:.4f}±{:.4f}(std)".format(mean_roc, std_roc))   
             print(" Final best | AUPRC {:.4f}±{:.4f}(std)".format(mean_prc, std_prc))   
 
-            print(self.pre_train_type, self.gnn_type, self.prompt_type, " Graph Task completed")
+            print(self.pre_train_type, self.gnn_type, self.prompt_type, " Node Task completed")
             mean_best = np.mean(batch_best_loss)
 
-            return  mean_best, mean_test_acc, std_test_acc, mean_f1, std_f1, mean_roc, std_roc, mean_prc, std_prc
+            return  mean_best, mean_test_acc, std_test_acc, mean_f1, std_f1, mean_roc, std_roc, mean_prc, std_prc, self.prompt, self.answering
 
                   
             # elif self.prompt_type != 'MultiGprompt':

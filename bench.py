@@ -1,6 +1,6 @@
 from prompt_graph.tasker import NodeTask, GraphTask
 from prompt_graph.utils import seed_everything
-from torchsummary import summary
+# from torchsummary import summary
 from prompt_graph.utils import print_model_parameters
 from prompt_graph.utils import  get_args
 from prompt_graph.data import load4node,load4graph, split_induced_graphs
@@ -9,6 +9,9 @@ import random
 import numpy as np
 import os
 import pandas as pd
+import torch
+import ipdb
+
 def load_induced_graph(dataset_name, data, device):
 
     folder_path = './Experiment/induced_graph/' + dataset_name
@@ -53,7 +56,7 @@ if args.dataset_name in ['ogbn-arxiv','Flickr']:
     }
 
 
-num_iter=10
+num_iter=5
 print('args.dataset_name', args.dataset_name)
 if args.prompt_type in['MultiGprompt','GPPT']:
     print('num_iter = 1')
@@ -78,78 +81,79 @@ final_roc_std = 0
 # args.shot_num = 1
 # args.pre_train_model_path='./Experiment/pre_trained_model/DD/DGI.GCN.128hidden_dim.pth' 
 
-
-if args.task == 'NodeTask':
-    data, input_dim, output_dim = load4node(args.dataset_name)   
-    data = data.to(args.device)
-    if args.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
-        graphs_list = load_induced_graph(args.dataset_name, data, args.device) 
-    else:
-        graphs_list = None 
-         
-
-if args.task == 'GraphTask':
-    input_dim, output_dim, dataset = load4graph(args.dataset_name)
-    
-print('num_iter',num_iter)
-for a in range(num_iter):
-    params = {k: random.choice(v) for k, v in param_grid.items()}
-    print(params)
-    
+if __name__ == "__main__":
+    args.device = torch.device('cuda:' + str(args.device) if torch.cuda.is_available() else 'cpu')
     if args.task == 'NodeTask':
-        tasker = NodeTask(pre_train_model_path = args.pre_train_model_path, 
-                        dataset_name = args.dataset_name, num_layer = args.num_layer,
-                        gnn_type = args.gnn_type, hid_dim = args.hid_dim, prompt_type = args.prompt_type,
-                        epochs = args.epochs, shot_num = args.shot_num, device=args.device, lr = params['learning_rate'], wd = params['weight_decay'],
-                        batch_size = int(params['batch_size']), data = data, input_dim = input_dim, output_dim = output_dim, graphs_list = graphs_list)
-
+        data, input_dim, output_dim = load4node(args.dataset_name)   
+        data = data.to(args.device)
+        if args.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
+            graphs_list = load_induced_graph(args.dataset_name, data, args.device) 
+        else:
+            graphs_list = None 
+            
 
     if args.task == 'GraphTask':
-        tasker = GraphTask(pre_train_model_path = args.pre_train_model_path, 
-                        dataset_name = args.dataset_name, num_layer = args.num_layer, gnn_type = args.gnn_type, hid_dim = args.hid_dim, prompt_type = args.prompt_type, epochs = args.epochs,
-                        shot_num = args.shot_num, device=args.device, lr = params['learning_rate'], wd = params['weight_decay'],
-                        batch_size = int(params['batch_size']), dataset = dataset, input_dim = input_dim, output_dim = output_dim)
-    pre_train_type = tasker.pre_train_type
-
-    # 返回平均损失
-    avg_best_loss, mean_test_acc, std_test_acc, mean_f1, std_f1, mean_roc, std_roc, _, _= tasker.run()
-    print(f"For {a}th searching, Tested Params: {params}, Avg Best Loss: {avg_best_loss}")
-
-    if avg_best_loss < best_loss:
-        best_loss = avg_best_loss
-        best_params = params
-        final_acc_mean = mean_test_acc
-        final_acc_std = std_test_acc
-        final_f1_mean = mean_f1
-        final_f1_std = std_f1
-        final_roc_mean = mean_roc
-        final_roc_std = std_roc
+        input_dim, output_dim, dataset = load4graph(args.dataset_name)
+        
+    print('num_iter',num_iter)
+    for a in range(num_iter):
+        params = {k: random.choice(v) for k, v in param_grid.items()}
+        print(params)
+        
+        if args.task == 'NodeTask':
+            tasker = NodeTask(pre_train_model_path = args.pre_train_model_path, 
+                            dataset_name = args.dataset_name, num_layer = args.num_layer,
+                            gnn_type = args.gnn_type, hid_dim = args.hid_dim, prompt_type = args.prompt_type,
+                            epochs = args.epochs, shot_num = args.shot_num, device=args.device, lr = params['learning_rate'], wd = params['weight_decay'],
+                            batch_size = int(params['batch_size']), data = data, input_dim = input_dim, output_dim = output_dim, graphs_list = graphs_list)
 
 
-# pre_train_types = ['None', 'DGI', 'GraphMAE', 'Edgepred_GPPT', 'Edgepred_Gprompt', 'GraphCL', 'SimGRACE']
-# prompt_types = ['None', 'GPPT', 'All-in-one', 'Gprompt', 'GPF', 'GPF-plus']
+        if args.task == 'GraphTask':
+            tasker = GraphTask(pre_train_model_path = args.pre_train_model_path, 
+                            dataset_name = args.dataset_name, num_layer = args.num_layer, gnn_type = args.gnn_type, hid_dim = args.hid_dim, prompt_type = args.prompt_type, epochs = args.epochs,
+                            shot_num = args.shot_num, device=args.device, lr = params['learning_rate'], wd = params['weight_decay'],
+                            batch_size = int(params['batch_size']), dataset = dataset, input_dim = input_dim, output_dim = output_dim)
+        pre_train_type = tasker.pre_train_type
 
-file_name = args.gnn_type +"_total_results.xlsx"
-if args.task == 'NodeTask':
-    file_path = os.path.join('./Experiment/ExcelResults/Node/'+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
-if args.task == 'GraphTask':
-    file_path = os.path.join('./Experiment/ExcelResults/Graph/'+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
-data = pd.read_excel(file_path, index_col=0)
+        # 返回平均损失
+        avg_best_loss, mean_test_acc, std_test_acc, mean_f1, std_f1, mean_roc, std_roc, _, _= tasker.run()
+        print(f"For {a}th searching, Tested Params: {params}, Avg Best Loss: {avg_best_loss}")
+        
+        if avg_best_loss < best_loss:
+            best_loss = avg_best_loss
+            best_params = params
+            final_acc_mean = mean_test_acc
+            final_acc_std = std_test_acc
+            final_f1_mean = mean_f1
+            final_f1_std = std_f1
+            final_roc_mean = mean_roc
+            final_roc_std = std_roc
 
-col_name = f"{pre_train_type}+{args.prompt_type}"
-print('col_name', col_name)
-data.at['Final Accuracy', col_name] = f"{final_acc_mean:.4f}±{final_acc_std:.4f}"
-data.at['Final F1', col_name] = f"{final_f1_mean:.4f}±{final_f1_std:.4f}"
-data.at['Final AUROC', col_name] = f"{final_roc_mean:.4f}±{final_roc_std:.4f}"
-data.to_excel(file_path)
 
-print("Data saved to "+file_path+" successfully.")
+    # pre_train_types = ['None', 'DGI', 'GraphMAE', 'Edgepred_GPPT', 'Edgepred_Gprompt', 'GraphCL', 'SimGRACE']
+    # prompt_types = ['None', 'GPPT', 'All-in-one', 'Gprompt', 'GPF', 'GPF-plus']
 
-print("After searching, Final Accuracy {:.4f}±{:.4f}(std)".format(final_acc_mean, final_acc_std)) 
-print("After searching, Final F1 {:.4f}±{:.4f}(std)".format(final_f1_mean, final_f1_std)) 
-print("After searching, Final AUROC {:.4f}±{:.4f}(std)".format(final_roc_mean, final_roc_std)) 
-print('best_params ', best_params)
-print('best_loss ',best_loss)
+    file_name = args.gnn_type +"_total_results.xlsx"
+    if args.task == 'NodeTask':
+        file_path = os.path.join('./Experiment/ExcelResults/Node/'+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
+    if args.task == 'GraphTask':
+        file_path = os.path.join('./Experiment/ExcelResults/Graph/'+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
+    data = pd.read_excel(file_path, index_col=0)
+
+    col_name = f"{pre_train_type}+{args.prompt_type}"
+    print('col_name', col_name)
+    data.at['Final Accuracy', col_name] = f"{final_acc_mean:.4f}±{final_acc_std:.4f}"
+    data.at['Final F1', col_name] = f"{final_f1_mean:.4f}±{final_f1_std:.4f}"
+    data.at['Final AUROC', col_name] = f"{final_roc_mean:.4f}±{final_roc_std:.4f}"
+    data.to_excel(file_path)
+
+    print("Data saved to "+file_path+" successfully.")
+
+    print("After searching, Final Accuracy {:.4f}±{:.4f}(std)".format(final_acc_mean, final_acc_std)) 
+    print("After searching, Final F1 {:.4f}±{:.4f}(std)".format(final_f1_mean, final_f1_std)) 
+    print("After searching, Final AUROC {:.4f}±{:.4f}(std)".format(final_roc_mean, final_roc_std)) 
+    print('best_params ', best_params)
+    print('best_loss ',best_loss)
 
 
 

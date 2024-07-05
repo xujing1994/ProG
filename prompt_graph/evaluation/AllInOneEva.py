@@ -14,6 +14,7 @@ def AllInOneEva(loader, prompt, gnn, answering, num_class, device):
     macro_f1.reset()
     auroc.reset()
     auprc.reset()
+    pres = []
 
     with torch.no_grad():
         for batch_id, batch in enumerate(loader):
@@ -21,6 +22,7 @@ def AllInOneEva(loader, prompt, gnn, answering, num_class, device):
             prompted_graph = prompt(batch)
             graph_emb = gnn(prompted_graph.x, prompted_graph.edge_index, prompted_graph.batch)
             pre = answering(graph_emb)
+
             pred = pre.argmax(dim=1)
 
             acc = accuracy(pred, batch.y)
@@ -29,13 +31,14 @@ def AllInOneEva(loader, prompt, gnn, answering, num_class, device):
             prc = auprc(pre, batch.y)
             if len(loader) > 20:
                 print("Batch {}/{} Acc: {:.4f} | Macro-F1: {:.4f}| AUROC: {:.4f}| AUPRC: {:.4f}".format(batch_id,len(loader), acc.item(), ma_f1.item(),roc.item(), prc.item()))
-
+            pres.append(pre)
     acc = accuracy.compute()
     ma_f1 = macro_f1.compute()
     roc = auroc.compute()
     prc = auprc.compute()
+    pres_ = torch.cat(pres, dim=0)
 
-    return acc.item(), ma_f1.item(), roc.item(), prc.item()
+    return acc.item(), ma_f1.item(), roc.item(), prc.item(), pres_
 
 
 def AllInOneEvaWithoutAnswer(loader, prompt, gnn, num_class, device):

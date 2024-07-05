@@ -17,8 +17,9 @@ def node_sample_and_save(data, k, folder, num_classes):
     # 获取标签
     labels = data.y.to('cpu')
     
-    # 随机选择90%的数据作为测试集
-    num_test = int(0.9 * data.num_nodes)
+    # 随机选择90%的数据作为测试集 --> change it to 70%
+    num_test = int(0.7 * data.num_nodes)
+    print(num_test)
     if num_test < 1000:
         num_test = int(0.7 * data.num_nodes)
     test_idx = torch.randperm(data.num_nodes)[:num_test]
@@ -322,12 +323,13 @@ def load4link_prediction_multi_large_scale_graph(dataset_name, num_per_samples=1
     return data, edge_label, edge_index, input_dim, output_dim
 
 # used in pre_train.py
-def NodePretrain(data, num_parts=200, split_method='Random Walk'):
+def NodePretrain(dataname, num_parts=200, split_method='Random Walk'):
 
     # if(dataname=='Cora'):
     #     num_parts=220
     # elif(dataname=='Texas'):
     #     num_parts=20
+    data, input_dim, output_dim = load4node(dataname)
     if(split_method=='Cluster'):
         x = data.x.detach()
         edge_index = data.edge_index
@@ -361,6 +363,6 @@ def NodePretrain(data, num_parts=200, split_method='Random Walk'):
         print('None split method!')
         exit()
     
-    return graph_list
+    return graph_list, input_dim
 
 

@@ -9,6 +9,7 @@ from prompt_graph.data import load4node, load4graph, NodePretrain
 from copy import deepcopy
 from.base import PreTrain
 import os
+import ipdb
 
 class SimGRACE(PreTrain):
 
@@ -68,7 +69,9 @@ class SimGRACE(PreTrain):
         self.train()
         train_loss_accum = 0
         total_step = 0
-        for step, data in enumerate(loader):
+        # ipdb.set_trace()
+        for data in loader:
+
             optimizer.zero_grad()
             data = data.to(self.device)
             x2 = self.perturbate_gnn(data) 
@@ -80,7 +83,6 @@ class SimGRACE(PreTrain):
             train_loss_accum += float(loss.detach().cpu().item())
             total_step = total_step + 1
             # print("第{}次gnn batch传播，loss是{}".format(step,train_loss_accum))
-
         return train_loss_accum / total_step
 
     def pretrain(self, batch_size=10, lr=0.01,decay=0.0001):

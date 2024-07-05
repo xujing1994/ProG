@@ -1,6 +1,7 @@
 import torchmetrics
 import torch
 from tqdm import tqdm
+import ipdb
 def GPFEva(loader, gnn, prompt, answering, num_class, device):
     prompt.eval()
     if answering:
@@ -14,6 +15,7 @@ def GPFEva(loader, gnn, prompt, answering, num_class, device):
     macro_f1.reset()
     auroc.reset()
     auprc.reset()
+    outs = []
     with torch.no_grad(): 
         for batch_id, batch in enumerate(loader): 
             batch = batch.to(device) 
@@ -21,19 +23,20 @@ def GPFEva(loader, gnn, prompt, answering, num_class, device):
             out = gnn(batch.x, batch.edge_index, batch.batch)
             if answering:
                 out = answering(out)  
+            # out: posterior probabilities, used to train the attack model
             pred = out.argmax(dim=1)  
-
             acc = accuracy(pred, batch.y)
             ma_f1 = macro_f1(pred, batch.y)
             roc = auroc(out, batch.y)
             prc = auprc(out, batch.y)
             if len(loader) > 20:
                 print("Batch {}/{} Acc: {:.4f} | Macro-F1: {:.4f}| AUROC: {:.4f}| AUPRC: {:.4f}".format(batch_id,len(loader), acc.item(), ma_f1.item(),roc.item(), prc.item()))
-
+            outs.append(out)
             # print(acc)
+    outs_ = torch.cat(outs, dim=0)
     acc = accuracy.compute()
     ma_f1 = macro_f1.compute()
     roc = auroc.compute()
     prc = auprc.compute()
        
-    return acc.item(), ma_f1.item(), roc.item(),prc.item()
+    return acc.item(), ma_f1.item(), roc.item(),prc.item(), outs_
