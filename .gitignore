@@ -1,12 +1,1 @@
-# Project exclude paths
-.idea/*
-.idea/workspace.xml
-/ProG/__pycache__
-/ProG/Experiment/*
-*.pyc
-.DS_Store
-/data
-/dataset
-/Docs
-/Experiment/*
-*.pkl
+/Experiment
