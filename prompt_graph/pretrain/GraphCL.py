@@ -9,6 +9,7 @@ from prompt_graph.data import load4node, load4graph, NodePretrain
 from torch.optim import Adam
 import os
 from.base import PreTrain
+import ipdb
 
 class GraphCL(PreTrain):
     def __init__(self, *args, **kwargs):    # hid_dim=16
@@ -21,7 +22,7 @@ class GraphCL(PreTrain):
     def load_graph_data(self):
 
         if self.dataset_name in ['PubMed', 'CiteSeer', 'Cora','Computers', 'Photo', 'Reddit', 'WikiCS', 'Flickr', 'ogbn-arxiv','Actor', 'Texas', 'Wisconsin']:
-            self.graph_list, self.input_dim = NodePretrain(dataname = self.dataset_name, num_parts=200, split_method='Cluster')
+            self.graph_list, self.input_dim = NodePretrain(dataname = self.dataset_name, num_parts=200, split_method='Cluster', use_different_dataset = self.use_different_dataset)
             # self.graph_list, self.input_dim = NodePretrain(dataname = self.dataset_name, num_parts=0, split_method='Random Walk')
         else:
             self.input_dim, self.out_dim, self.graph_list= load4graph(self.dataset_name,pretrained=True)
@@ -69,6 +70,7 @@ class GraphCL(PreTrain):
         batch_size, _ = x1.size()
         x1_abs = x1.norm(dim=1)
         x2_abs = x2.norm(dim=1)
+
         sim_matrix = torch.einsum('ik,jk->ij', x1, x2) / torch.einsum('i,j->ij', x1_abs, x2_abs)
         sim_matrix = torch.exp(sim_matrix / T)
         pos_sim = sim_matrix[range(batch_size), range(batch_size)]
@@ -102,7 +104,10 @@ class GraphCL(PreTrain):
         self.to(self.device)
         if self.dataset_name in ['COLLAB', 'IMDB-BINARY', 'REDDIT-BINARY', 'ogbg-ppa', 'DD']:
             batch_size = 512
-        loader1, loader2 = self.get_loader(self.graph_list, batch_size, aug1=aug1, aug2=aug2)
+        train_graph_list = self.graph_list[:int(len(self.graph_list)/2)]
+        test_graph_list = self.graph_list[int(len(self.graph_list)/2):]
+        loader1, loader2 = self.get_loader(train_graph_list, batch_size, aug1=aug1, aug2=aug2)
+        test_loader1, test_loader2 = self.get_loader(test_graph_list, batch_size, aug1=aug1, aug2=aug2)
         print('start training {} | {} | {}...'.format(self.dataset_name, 'GraphCL', self.gnn_type))
         optimizer = Adam(self.parameters(), lr=lr, weight_decay=decay)
 

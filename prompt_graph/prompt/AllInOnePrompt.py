@@ -5,6 +5,7 @@ from prompt_graph.utils import act
 from deprecated.sphinx import deprecated
 from sklearn.cluster import KMeans
 from torch_geometric.nn.inits import glorot
+import ipdb
 
 class LightPrompt(torch.nn.Module):
     def __init__(self, token_dim, token_num_per_group, group_num=1, inner_prune=None):
@@ -106,8 +107,7 @@ class HeavyPrompt(LightPrompt):
             train_batch = train_batch.to(device)
             prompted_graph = self.forward(train_batch)
             # print(prompted_graph)
-
-            graph_emb = gnn(prompted_graph.x, prompted_graph.edge_index, prompted_graph.batch)
+            graph_emb = gnn(prompted_graph.x, prompted_graph.edge_index, prompted_graph.batch) # Here, use SVD to unify input features from all domains as 100 dimensions
             pre = answering(graph_emb)
             train_loss = lossfn(pre, train_batch.y)
             train_loss.backward()

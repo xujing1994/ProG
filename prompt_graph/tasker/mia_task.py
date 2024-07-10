@@ -71,6 +71,7 @@ class MIATask(BaseTask):
                   for features, labels in trainloader:
                         # ipdb.set_trace()
                         self.attack_model.train()
+                        self.attack_model.to(self.device)
                         labels = labels.type(torch.LongTensor)
                         features, labels = features.to(self.device), labels.to(self.device)
                         optimizer.zero_grad()

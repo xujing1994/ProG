@@ -38,12 +38,15 @@ seed_everything(args.seed)
 print('dataset_name', args.dataset_name)
 
 if __name__ == "__main__":
+    if args.dataset_name not in args.pre_train_model_path :
+         # use different dataset for prompt fine-tuning
+         use_different_dataset = True
     if args.task == 'NodeTask':
-        data, input_dim, output_dim = load4node(args.dataset_name)   
-        args.device = torch.device('cuda:' + str(args.device) if torch.cuda.is_available() else 'cpu')
-        data = data.to(args.device)
+        data, input_dim, output_dim = load4node(args.dataset_name, use_different_dataset)   
+        device = torch.device('cuda:' + str(args.device) if torch.cuda.is_available() else 'cpu')
+        data = data.to(device)
         if args.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
-            graphs_list = load_induced_graph(args.dataset_name, data, args.device) 
+            graphs_list = load_induced_graph(args.dataset_name, data,  device) # modify the node feature dimension here
         else:
             graphs_list = None 
             

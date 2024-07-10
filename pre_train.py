@@ -9,7 +9,7 @@ if __name__ == '__main__':
     if args.task == 'SimGRACE':
         pt = SimGRACE(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device)
     if args.task == 'GraphCL':
-        pt = GraphCL(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device)
+        pt = GraphCL(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device, use_different_dataset=args.use_different_dataset)
     if args.task == 'Edgepred_GPPT':
         pt = Edgepred_GPPT(dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device)
     if args.task == 'Edgepred_Gprompt':
