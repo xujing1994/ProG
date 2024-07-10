@@ -37,6 +37,7 @@ def get_args():
     parser.add_argument('--num_workers', type=int, default = 0, help='Number of workers for dataset loading')
     parser.add_argument('--num_layers', type=int, default = 1, help='A range of [1,2,3]-layer MLPs with equal width')
     parser.add_argument('--pnum', type=int, default = 5, help='The number of independent basis for GPF-plus')
+    parser.add_argument('--use_different_dataset', action="store_true", help="wheterh to use different in the pre-train and prompt fine-tune phases")
     
 
     args = parser.parse_args()

@@ -25,7 +25,7 @@ class NodeTask(BaseTask):
                   self.data = data
                   if self.dataset_name == 'ogbn-arxiv':
                         self.data.y = self.data.y.squeeze()
-                  self.input_dim = input_dim
+                  self.input_dim = input_dim # inital node feature
                   self.output_dim = output_dim
                   self.graphs_list = graphs_list
                   self.answering =  torch.nn.Sequential(torch.nn.Linear(self.hid_dim, self.output_dim),
@@ -148,7 +148,7 @@ class NodeTask(BaseTask):
             return total_loss / len(train_loader) 
 
       def AllInOneTrain(self, train_loader, answer_epoch=1, prompt_epoch=1):
-            #we update answering and prompt alternately.
+            # we update answering and prompt alternately.
             # tune task head
             self.answering.train()
             self.prompt.eval()

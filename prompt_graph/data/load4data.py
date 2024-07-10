@@ -13,6 +13,9 @@ import os
 from ogb.nodeproppred import PygNodePropPredDataset
 from ogb.graphproppred import PygGraphPropPredDataset
 import ipdb
+from sklearn.decomposition import TruncatedSVD
+from sklearn.preprocessing import StandardScaler
+import numpy as np
 
 def node_sample_and_save(data, k, folder, num_classes):
     # 获取标签
@@ -162,13 +165,43 @@ def load4graph(dataset_name, shot_num= 10, num_parts=None, pretrained=False):
         else:
             return input_dim, out_dim, dataset        
 
+def svd_transformer(X):
+    # Standardize the features (important for SVD)
+    ipdb.set_trace()
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+
+    # Initialize SVD and fit on the training data
+    # svd = TruncatedSVD(n_components=X.shape[1] - 1)  # Use one less component than the feature count
+    n_components = 100
+    svd = TruncatedSVD(n_components=n_components)
+    X_svd = svd.fit_transform(X)
+
+    # Calculate explained variance ratio for each component
+    # explained_variance_ratio = svd.explained_variance_ratio_
+
+    # Calculate the cumulative explained variance
+    # cumulative_explained_variance = np.cumsum(explained_variance_ratio)
+
+    # Find the number of components that explain at least 75% of the variance
+    # n_components = np.argmax(cumulative_explained_variance >= 0.75) + 1
+    # n_components = 1433
+
+    # Transform both the training and test data to the selected number of components
+    # X_svd_selected = svd.transform(X)[:, :n_components]
+    return X_svd, n_components
     
-def load4node(dataname):
+def load4node(dataname, use_different_dataset):
     print(dataname)
     if dataname in ['PubMed', 'CiteSeer', 'Cora']:
         dataset = Planetoid(root='data/Planetoid', name=dataname, transform=NormalizeFeatures())
         data = dataset[0]
-        input_dim = dataset.num_features
+        if use_different_dataset:
+            ipdb.set_trace()
+            data.x, input_dim = svd_transformer(data.x)
+            # input_dim = 1433
+        else:
+            input_dim = dataset.num_features
         out_dim = dataset.num_classes
     elif dataname in ['Computers', 'Photo']:
         dataset = Amazon(root='data/amazon', name=dataname)
@@ -201,7 +234,7 @@ def load4node(dataname):
         input_dim = dataset.num_features
         out_dim = dataset.num_classes
     elif dataname == 'ogbn-arxiv':
-        dataset = PygNodePropPredDataset(name='ogbn-arxiv', root='./dataset')
+        dataset = PygNodePropPredDataset(name='ogbn-arxiv', root='./data')
         data = dataset[0]
         input_dim = data.x.shape[1]
         out_dim = dataset.num_classes
@@ -324,13 +357,13 @@ def load4link_prediction_multi_large_scale_graph(dataset_name, num_per_samples=1
     return data, edge_label, edge_index, input_dim, output_dim
 
 # used in pre_train.py
-def NodePretrain(dataname, num_parts=200, split_method='Random Walk'):
+def NodePretrain(dataname, num_parts=200, split_method='Random Walk', use_different_dataset=False):
 
     # if(dataname=='Cora'):
     #     num_parts=220
     # elif(dataname=='Texas'):
     #     num_parts=20
-    data, input_dim, output_dim = load4node(dataname)
+    data, input_dim, output_dim = load4node(dataname, use_different_dataset)
     if(split_method=='Cluster'):
         x = data.x.detach()
         edge_index = data.edge_index

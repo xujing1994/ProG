@@ -7,6 +7,7 @@ from torch import nn, optim
 from prompt_graph.data import load4node, load4graph
 from prompt_graph.utils import Gprompt_tuning_loss
 import numpy as np
+import ipdb
 
 class BaseTask:
     def __init__(self, pre_train_model_path='None', gnn_type='TransformerConv',
@@ -15,7 +16,7 @@ class BaseTask:
         
         self.pre_train_model_path = pre_train_model_path
         self.pre_train_type = self.return_pre_train_type(pre_train_model_path)
-        self.device = torch.device('cuda:'+ str(device) if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda:' + str(device) if torch.cuda.is_available() else 'cpu')
         self.hid_dim = hid_dim
         self.num_layer = num_layer
         self.dataset_name = dataset_name
@@ -109,6 +110,7 @@ class BaseTask:
         if self.gnn_type == 'GAT':
             self.gnn = GAT(input_dim=self.input_dim, hid_dim=self.hid_dim, num_layer=self.num_layer)
         elif self.gnn_type == 'GCN':
+            #self.gnn = GCN(input_dim=self.input_dim, hid_dim=self.hid_dim, num_layer=self.num_layer)
             self.gnn = GCN(input_dim=self.input_dim, hid_dim=self.hid_dim, num_layer=self.num_layer)
         elif self.gnn_type == 'GraphSAGE':
             self.gnn = GraphSAGE(input_dim=self.input_dim, hid_dim=self.hid_dim, num_layer=self.num_layer)
@@ -126,8 +128,8 @@ class BaseTask:
         if self.pre_train_model_path != 'None' and self.prompt_type != 'MultiGprompt':
             if self.gnn_type not in self.pre_train_model_path :
                 raise ValueError(f"the Downstream gnn '{self.gnn_type}' does not match the pre-train model")
-            if self.dataset_name not in self.pre_train_model_path :
-                raise ValueError(f"the Downstream dataset '{self.dataset_name}' does not match the pre-train dataset")
+            # if self.dataset_name not in self.pre_train_model_path : # change it for different downstream dataset
+            #     raise ValueError(f"the Downstream dataset '{self.dataset_name}' does not match the pre-train dataset")
 
             self.gnn.load_state_dict(torch.load(self.pre_train_model_path, map_location='cpu'))
             self.gnn.to(self.device)       
