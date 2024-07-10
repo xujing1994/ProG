@@ -38,6 +38,9 @@ seed_everything(args.seed)
 print('dataset_name', args.dataset_name)
 
 if __name__ == "__main__":
+    pretrain_path = args.pre_train_model_path
+    pretrain_type = os.path.split(pretrain_path)[1].split('.')[0]
+    print("Dataset: {}, GNN: {}, Pretrain: {}, Prompt: {}, ShotNum: {}, Seed: {}".format(args.dataset_name, args.gnn_type, pretrain_type, args.prompt_type, args.shot_num, args.seed))
     if args.dataset_name not in args.pre_train_model_path :
          # use different dataset for prompt fine-tuning
          use_different_dataset = True
