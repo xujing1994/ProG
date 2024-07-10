@@ -34,8 +34,12 @@ class NodeTask(BaseTask):
 
       def create_few_data_folder(self):
             # 创建文件夹并保存数据
+            if self.use_different_dataset:
+                  shot_path = './Experiment_diff_dataset/sample_data/Node/'+ self.dataset_name
+            else:
+                  shot_path = './Experiment/sample_data/Node/'+ self.dataset_name
             for k in range(1, 11):
-                  k_shot_folder = './Experiment/sample_data/Node/'+ self.dataset_name +'/' + str(k) +'_shot'
+                  k_shot_folder = os.path.join(shot_path, str(k)+'_shot')
                   os.makedirs(k_shot_folder, exist_ok=True)
                   
                   for i in range(0, 6):
@@ -208,16 +212,20 @@ class NodeTask(BaseTask):
                   self.answer_epoch = 50
                   self.prompt_epoch = 50
                   self.epochs = int(self.epochs/self.answer_epoch)
+            if self.use_different_dataset:
+                  folder = "./Experiment_diff_dataset/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
+            else:
+                  folder = "./Experiment/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
             for i in range(self.seed, self.seed+1): # specify the seed
                   self.initialize_gnn()
                   self.initialize_prompt()
                   self.initialize_optimizer()
-                  idx_train = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/train_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).to(self.device)
+                  idx_train = torch.load("{}/{}/train_idx.pt".format(folder, i)).type(torch.long).to(self.device)
                   print('idx_train',idx_train)
-                  train_lbls = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/train_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().to(self.device)
+                  train_lbls = torch.load("{}/{}/train_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
                   print("true",i,train_lbls)
-                  idx_test = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/test_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).to(self.device)
-                  test_lbls = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/test_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().to(self.device)
+                  idx_test = torch.load("{}/{}/test_idx.pt".format(folder, i)).type(torch.long).to(self.device)
+                  test_lbls = torch.load("{}/{}/test_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
 
                   # 1. split idx_train, train_lbls, idx_test, test_lbls into two equal parts as the target/shadow datasets
                   if flag == 'target':

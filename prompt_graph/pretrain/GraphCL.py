@@ -159,11 +159,13 @@ class GraphCL(PreTrain):
             # print(cnt_wait)
             # write training results to a file
 
-
-        folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
+        if self.use_different_dataset:
+            folder_path = f"./Experiment_diff_dataset/pre_trained_model/{self.dataset_name}"
+        else:
+            folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
         torch.save(self.gnn.state_dict(),
-                    "./Experiment/pre_trained_model/{}/{}.{}.{}.pth".format(self.dataset_name, 'GraphCL', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))
+                    "{}/{}.{}.{}.pth".format(folder_path, 'GraphCL', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))
         print("+++model saved ! {}/{}.{}.{}.pth".format(self.dataset_name, 'GraphCL', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))

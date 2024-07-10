@@ -12,9 +12,11 @@ import pandas as pd
 import ipdb
 import torch
 
-def load_induced_graph(dataset_name, data, device):
-
-    folder_path = './Experiment/induced_graph/' + dataset_name
+def load_induced_graph(dataset_name, data, device, use_different_dataset):
+    if use_different_dataset:
+        folder_path = './Experiment_diff_dataset/induced_graph/' + dataset_name
+    else:
+        folder_path = './Experiment/induced_graph/' + dataset_name
     if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
@@ -49,7 +51,7 @@ if __name__ == "__main__":
         device = torch.device('cuda:' + str(args.device) if torch.cuda.is_available() else 'cpu')
         data = data.to(device)
         if args.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
-            graphs_list = load_induced_graph(args.dataset_name, data, device) 
+            graphs_list = load_induced_graph(args.dataset_name, data, device, args.use_different_dataset) 
         else:
             graphs_list = None 
             
@@ -96,10 +98,14 @@ if __name__ == "__main__":
     # print("Final AUROC {:.4f}±{:.4f}(std)".format(roc, std_roc)) 
     # save results to txt file
     file_name = args.gnn_type +"_total_results.txt"
-    if args.task == 'NodeTask':
-        file_path = os.path.join('./Experiment/ExcelResults/Node/'+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
+    if args.use_different_dataset:
+        folder = "./Experiment_diff_dataset/ExcelResults"
     else:
-        file_path = os.path.join('./Experiment/ExcelResults/Graph/'+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
+        folder = "./Experiment/ExcelResults"
+    if args.task == 'NodeTask':
+        file_path = os.path.join('{}/Node/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
+    else:
+        file_path = os.path.join('{}/Graph/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
     with open(file_path, 'a') as f:
         print(file_path)
         #f.write("pre_train+prompt learning_rate weight_decay batch_size Final_Accuracy Final_F1 Final_AUROC")
