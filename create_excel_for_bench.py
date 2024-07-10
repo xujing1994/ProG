@@ -15,20 +15,20 @@ for dataset_name in node_dataset_name:
         # 创建DataFrame
         data = pd.DataFrame(columns=column_names, index=['Final Accuracy', 'Final F1', 'Final AUROC'])
 
-        gnn_type = 'GCN'
+        gnn_type = ['GCN', 'GAT', 'GCov', 'GraphSAGE', 'GIN', 'GraphTransformer']
+        for i, gt in enumerate(gnn_type):
+            file_name = gnn_type[i] +"_total_results.xlsx"
+            file_path = os.path.join('./Experiment/ExcelResults/Node/'+str(shot_num)+'shot/'+ dataset_name +'/', file_name)
+            if not os.path.exists(file_path):
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)        
+            data.to_excel(file_path)
+            text_filepath = os.path.join('./Experiment/ExcelResults/Node/'+str(shot_num)+'shot/'+ dataset_name +'/', gnn_type[i] +"_total_results.txt")
+            with open(text_filepath, 'w') as f:
+                f.write("pre_train+prompt Learning_rate Weight_decay Batch_size Epochs shot_num hid_dim seed target_Final_Accuracy target_Final_F1 target_Final_AUROC shadow_Final_Accuracy shadow_Final_F1 shadow_Final_AUROC MIA_ASR")
+                f.write("\n")
 
-        file_name = gnn_type +"_total_results.xlsx"
-        file_path = os.path.join('./Experiment/ExcelResults/Node/'+str(shot_num)+'shot/'+ dataset_name +'/', file_name)
-        if not os.path.exists(file_path):
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)        
-        data.to_excel(file_path)
-        text_filepath = os.path.join('./Experiment/ExcelResults/Node/'+str(shot_num)+'shot/'+ dataset_name +'/', gnn_type +"_total_results.txt")
-        with open(text_filepath, 'w') as f:
-            f.write("pre_train+prompt Learning_rate Weight_decay Batch_size Epochs shot_num hid_dim seed target_Final_Accuracy target_Final_F1 target_Final_AUROC shadow_Final_Accuracy shadow_Final_F1 shadow_Final_AUROC MIA_ASR")
-            f.write("\n")
-
-        # 打印信息确认文件已保存
-        print(f"Data saved to {file_path} successfully.")
+            # 打印信息确认文件已保存
+            print(f"Data saved to {file_path} successfully.")
 
 for dataset_name in graph_dataset_name:
     for shot_num in shot_nums:
@@ -41,17 +41,17 @@ for dataset_name in graph_dataset_name:
         # 创建DataFrame
         data = pd.DataFrame(columns=column_names, index=['Final Accuracy', 'Final F1', 'Final AUROC'])
 
-        gnn_type = 'GCN'
+        gnn_type = ['GCN', 'GAT', 'GCov', 'GraphSAGE', 'GIN', 'GraphTransformer']
+        for i, gt in enumerate(gnn_type):
+            file_name = gnn_type[i] +"_total_results.xlsx"
+            file_path = os.path.join('./Experiment/ExcelResults/Graph/'+str(shot_num)+'shot/'+ dataset_name +'/', file_name)
+            if not os.path.exists(file_path):
+                os.makedirs(os.path.dirname(file_path), exist_ok=True)        
+            data.to_excel(file_path)
 
-        file_name = gnn_type +"_total_results.xlsx"
-        file_path = os.path.join('./Experiment/ExcelResults/Graph/'+str(shot_num)+'shot/'+ dataset_name +'/', file_name)
-        if not os.path.exists(file_path):
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)        
-        data.to_excel(file_path)
-
-        text_filepath = os.path.join('./Experiment/ExcelResults/Graph/'+str(shot_num)+'shot/'+ dataset_name +'/', gnn_type +"_total_results.txt")
-        with open(text_filepath, 'w') as f:
-            f.write("pre_train+prompt Learning_rate Weight_decay Batch_size Epochs shot_num hid_dim seed target_Final_Accuracy target_Final_F1 target_Final_AUROC shadow_Final_Accuracy shadow_Final_F1 shadow_Final_AUROC MIA_ASR")
-            f.write("\n")        
-        # 打印信息确认文件已保存
-        print(f"Data saved to {file_path} successfully.")
+            text_filepath = os.path.join('./Experiment/ExcelResults/Graph/'+str(shot_num)+'shot/'+ dataset_name +'/', gnn_type[i] +"_total_results.txt")
+            with open(text_filepath, 'w') as f:
+                f.write("pre_train+prompt Learning_rate Weight_decay Batch_size Epochs shot_num hid_dim seed target_Final_Accuracy target_Final_F1 target_Final_AUROC shadow_Final_Accuracy shadow_Final_F1 shadow_Final_AUROC MIA_ASR")
+                f.write("\n")        
+            # 打印信息确认文件已保存
+            print(f"Data saved to {file_path} successfully.")

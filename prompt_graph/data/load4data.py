@@ -12,6 +12,7 @@ from torch_geometric.utils import negative_sampling
 import os
 from ogb.nodeproppred import PygNodePropPredDataset
 from ogb.graphproppred import PygGraphPropPredDataset
+import ipdb
 
 def node_sample_and_save(data, k, folder, num_classes):
     # 获取标签

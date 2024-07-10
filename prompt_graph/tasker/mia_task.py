@@ -71,6 +71,7 @@ class MIATask(BaseTask):
                   for features, labels in trainloader:
                         # ipdb.set_trace()
                         self.attack_model.train()
+                        self.attack_model.to(self.device)
                         labels = labels.type(torch.LongTensor)
                         features, labels = features.to(self.device), labels.to(self.device)
                         optimizer.zero_grad()
@@ -209,7 +210,7 @@ class MIATask(BaseTask):
                   neg_labels = torch.zeros(outs_test.shape[0])
                   outs_data = torch.cat((outs_train, outs_test), dim=0)
                   outs_labels = torch.cat((pos_labels, neg_labels), dim = 0)
-                  ipdb.set_trace()
+                  # ipdb.set_trace()
                   # the number of testing dataset is significantly higher than that of the training dataset --> adjust the number of training dataset and testing dataset for the shadow prompt
 
                   outs_train_data = torch.cat((outs_train[:int(len(outs_train)*0.5)], outs_test[:int(len(outs_test)*0.5)]), dim=0)

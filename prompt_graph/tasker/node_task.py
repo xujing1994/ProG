@@ -38,7 +38,7 @@ class NodeTask(BaseTask):
                   k_shot_folder = './Experiment/sample_data/Node/'+ self.dataset_name +'/' + str(k) +'_shot'
                   os.makedirs(k_shot_folder, exist_ok=True)
                   
-                  for i in range(1, 6):
+                  for i in range(0, 6):
                         folder = os.path.join(k_shot_folder, str(i))
                         if not os.path.exists(folder):
                               os.makedirs(folder)

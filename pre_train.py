@@ -6,6 +6,7 @@ args = get_args()
 seed_everything(args.seed)
 
 if __name__ == '__main__':
+    print('Dataset: {}, Pretrain: {}, GNN: {}, Seed: {}'.format(args.dataset_name, args.task, args.gnn_type, args.seed))
     if args.task == 'SimGRACE':
         pt = SimGRACE(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device)
     if args.task == 'GraphCL':
@@ -16,10 +17,10 @@ if __name__ == '__main__':
         pt = Edgepred_Gprompt(dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device)
     if args.task == 'DGI':
         pt = DGI(dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device)
-    if args.task == 'NodeMultiGprompt':
+    if args.task == 'NodeMultiGprompt': # out of scope of paper
         nonlinearity = 'prelu'
         pt = NodePrePrompt(args.dataset_name, args.hid_dim, nonlinearity, 0.9, 0.9, 0.1, 0.001, 1, 0.3)
-    if args.task == 'GraphMultiGprompt':
+    if args.task == 'GraphMultiGprompt': # out of scope of paper
         nonlinearity = 'prelu'
         pt = GraphPrePrompt(graph_list, input_dim, out_dim, args.dataset_name, args.hid_dim, nonlinearity,0.9,0.9,0.1,1,0.3)
     if args.task == 'GraphMAE':

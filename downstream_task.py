@@ -38,12 +38,15 @@ seed_everything(args.seed)
 print('dataset_name', args.dataset_name)
 
 if __name__ == "__main__":
+    pretrain_path = args.pre_train_model_path
+    pretrain_type = os.path.split(pretrain_path)[1].split('.')[0]
+    print("Dataset: {}, GNN: {}, Pretrain: {}, Prompt: {}, ShotNum: {}, Seed: {}".format(args.dataset_name, args.gnn_type, pretrain_type, args.prompt_type, args.shot_num, args.seed))
     if args.task == 'NodeTask':
         data, input_dim, output_dim = load4node(args.dataset_name)   
-        args.device = torch.device('cuda:' + str(args.device) if torch.cuda.is_available() else 'cpu')
-        data = data.to(args.device)
+        device = torch.device('cuda:' + str(args.device) if torch.cuda.is_available() else 'cpu')
+        data = data.to(device)
         if args.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
-            graphs_list = load_induced_graph(args.dataset_name, data, args.device) 
+            graphs_list = load_induced_graph(args.dataset_name, data, device) 
         else:
             graphs_list = None 
             
@@ -80,10 +83,10 @@ if __name__ == "__main__":
     attack_tasker = MIATask(pre_train_model_path = args.pre_train_model_path, 
                         dataset_name = args.dataset_name, num_layer = args.num_layer, prompt=prompt_shadow,
                         gnn_type = args.gnn_type, hid_dim = args.hid_dim, prompt_type = args.prompt_type,
-                        epochs = args.epochs, shot_num = args.shot_num, device=args.device, lr = args.lr, wd = args.decay,
+                        epochs = 100, shot_num = args.shot_num, device=args.device, lr = args.lr, wd = args.decay,
                         batch_size = args.batch_size, data = data, input_dim = input_dim, output_dim = output_dim, graphs_list = graphs_list)
     attack_model, asr = attack_tasker.run()
-    ipdb.set_trace()
+    # ipdb.set_trace()
 
     # print("Final Accuracy {:.4f}±{:.4f}(std)".format(test_acc, std_test_acc)) 
     # print("Final F1 {:.4f}±{:.4f}(std)".format(f1,std_f1)) 

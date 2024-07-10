@@ -102,16 +102,16 @@ class SimGRACE(PreTrain):
 
             print("***epoch: {}/{} | train_loss: {:.8}".format(epoch, self.epochs, train_loss))
 
-            if train_loss_min > train_loss:
-                train_loss_min = train_loss
-                cnt_wait = 0
-            else:
-                cnt_wait += 1
-                if cnt_wait == patience:
-                    print('-' * 100)
-                    print('Early stopping at '+str(epoch) +' eopch!')
-                    break
-            print(cnt_wait)
+            # if train_loss_min > train_loss:
+            #     train_loss_min = train_loss
+            #     cnt_wait = 0
+            # else:
+            #     cnt_wait += 1
+            #     if cnt_wait == patience:
+            #         print('-' * 100)
+            #         print('Early stopping at '+str(epoch) +' eopch!')
+            #         break
+            # print(cnt_wait)
 
         folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
         if not os.path.exists(folder_path):

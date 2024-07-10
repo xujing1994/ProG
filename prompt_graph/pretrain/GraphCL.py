@@ -9,6 +9,7 @@ from prompt_graph.data import load4node, load4graph, NodePretrain
 from torch.optim import Adam
 import os
 from.base import PreTrain
+import ipdb
 
 class GraphCL(PreTrain):
     def __init__(self, *args, **kwargs):    # hid_dim=16
@@ -95,6 +96,21 @@ class GraphCL(PreTrain):
             total_step = total_step + 1
 
         return train_loss_accum / total_step
+    
+    def test_graphcl(self, loader1, loader2):
+        self.eval()
+        test_loss_accum = 0
+        total_step = 0
+        for step, batch in enumerate(zip(loader1, loader2)):
+            batch1, batch2 = batch
+            x1 = self.forward_cl(batch1.x.to(self.device), batch1.edge_index.to(self.device), batch1.batch.to(self.device))
+            x2 = self.forward_cl(batch2.x.to(self.device), batch2.edge_index.to(self.device), batch2.batch.to(self.device))
+            loss = self.loss_cl(x1, x2)
+
+            test_loss_accum += float(loss.detach().cpu().item())
+            total_step = total_step + 1
+
+        return test_loss_accum / total_step
 
     def pretrain(self, batch_size=10, aug1='dropN', aug2="permE", aug_ratio=None, lr=0.01, decay=0.0001):
 
@@ -102,7 +118,11 @@ class GraphCL(PreTrain):
         self.to(self.device)
         if self.dataset_name in ['COLLAB', 'IMDB-BINARY', 'REDDIT-BINARY', 'ogbg-ppa', 'DD']:
             batch_size = 512
-        loader1, loader2 = self.get_loader(self.graph_list, batch_size, aug1=aug1, aug2=aug2)
+        train_graph_list = self.graph_list[:int(len(self.graph_list)/2)]
+        test_graph_list = self.graph_list[int(len(self.graph_list)/2):]
+        loader1, loader2 = self.get_loader(train_graph_list, batch_size, aug1=aug1, aug2=aug2)
+        test_loader1, test_loader2 = self.get_loader(test_graph_list, batch_size, aug1=aug1, aug2=aug2)
+
         print('start training {} | {} | {}...'.format(self.dataset_name, 'GraphCL', self.gnn_type))
         optimizer = Adam(self.parameters(), lr=lr, weight_decay=decay)
 
@@ -111,19 +131,34 @@ class GraphCL(PreTrain):
         cnt_wait = 0
         for epoch in range(1, self.epochs + 1):  # 1..100
             train_loss = self.train_graphcl(loader1, loader2, optimizer)
+            test_loss = self.test_graphcl(test_loader1, test_loader2)
+            print("***epoch: {}/{} | train_loss: {:.8} | test_loss: {:.8}".format(epoch, self.epochs, train_loss, test_loss))
 
-            print("***epoch: {}/{} | train_loss: {:.8}".format(epoch, self.epochs, train_loss))
+            file_path = f"./Experiment/pre_train_results/{self.dataset_name}"
+            if not os.path.exists(file_path):
+                os.makedirs(file_path)
+            filename = "GraphCL.{}.{}hidden_dim.seed{}.txt".format(self.gnn_type, str(self.hid_dim), self.seed)
+            save_path = os.path.join(file_path, filename)
+            # if save_path already exist, clear all existing contents
+            if (epoch == 1) and (os.path.exists(save_path)): 
+                os.remove(save_path) 
+            with open(save_path, 'a') as f:
+                f.write('%d %.8f %.8f'%(epoch, train_loss, test_loss))
+                f.write("\n")
 
-            if train_loss_min > train_loss:
-                train_loss_min = train_loss
-                cnt_wait = 0
-            else:
-                cnt_wait += 1
-                if cnt_wait == patience:
-                    print('-' * 100)
-                    print('Early stopping at '+str(epoch) +' eopch!')
-                    break
-            print(cnt_wait)
+
+            # if train_loss_min > train_loss:
+            #     train_loss_min = train_loss
+            #     cnt_wait = 0
+            # else:
+            #     cnt_wait += 1
+            #     if cnt_wait == patience:
+            #         print('-' * 100)
+            #         print('Early stopping at '+str(epoch) +' eopch!')
+            #         break
+            # print(cnt_wait)
+            # write training results to a file
+
 
         folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
         if not os.path.exists(folder_path):
