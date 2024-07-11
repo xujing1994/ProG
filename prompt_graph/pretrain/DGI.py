@@ -105,7 +105,7 @@ class DGI(PreTrain):
 
     def load_data(self):
         if self.dataset_name in ['PubMed', 'CiteSeer', 'Cora','Computers', 'Photo', 'Reddit', 'WikiCS', 'Flickr', 'ogbn-arxiv','Actor', 'Texas', 'Wisconsin']:
-            data, input_dim, _ = load4node(self.dataset_name)
+            data, input_dim, _ = load4node(self.dataset_name, use_different_dataset=self.use_different_dataset)
             self.input_dim = input_dim
         elif self.dataset_name in ['MUTAG', 'ENZYMES', 'COLLAB', 'PROTEINS', 'IMDB-BINARY', 'REDDIT-BINARY', 'COX2', 'BZR', 'PTC_MR', 'ogbg-ppa', 'DD']:
             input_dim, _, graph_list= load4graph(self.dataset_name,pretrained=True) # need graph list not dataset object, so the pretrained = True
@@ -187,10 +187,26 @@ class DGI(PreTrain):
         patience = 20
         cnt_wait = 0
 
+        if self.use_different_dataset:
+            file_path = f"./Experiment_diff_dataset/pre_train_results/{self.dataset_name}"
+        else:
+            file_path = f"./Experiment/pre_train_results/{self.dataset_name}"
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
+
         for epoch in range(1, self.epochs + 1):
             time0 = time.time()
             train_loss = self.pretrain_one_epoch()
             print("***epoch: {}/{} | train_loss: {:.8}".format(epoch, self.epochs , train_loss))
+
+            filename = "DGI.{}.{}hidden_dim.seed{}.txt".format(self.gnn_type, str(self.hid_dim), self.seed)
+            save_path = os.path.join(file_path, filename)
+            # if save_path already exist, clear all existing contents
+            if (epoch == 1) and (os.path.exists(save_path)): 
+                os.remove(save_path) 
+            with open(save_path, 'a') as f:
+                f.write('%d %.8f'%(epoch, train_loss))
+                f.write("\n")
 
             
             if train_loss_min > train_loss:
@@ -204,9 +220,13 @@ class DGI(PreTrain):
                     break
 
 
-        folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
+        if self.use_different_dataset:
+            folder_path = f"./Experiment_diff_dataset/pre_trained_model/{self.dataset_name}"
+        else:
+            folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
+
         torch.save(self.gnn.state_dict(),
-                    "./Experiment/pre_trained_model/{}/{}.{}.{}.pth".format(self.dataset_name, 'DGI', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))
+                    "{}/{}.{}.{}.pth".format(folder_path, 'DGI', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))
         print("+++model saved ! {}/{}.{}.{}.pth".format(self.dataset_name, 'DGI', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))

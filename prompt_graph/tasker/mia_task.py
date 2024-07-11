@@ -133,15 +133,20 @@ class MIATask(BaseTask):
                   self.answer_epoch = 50
                   self.prompt_epoch = 50
                   self.epochs = int(self.epochs/self.answer_epoch)
+            if self.use_different_dataset:
+                  folder = "./Experiment_diff_dataset/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
+            else:
+                  folder = "./Experiment/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
+
             for i in range(1, 2): # specify the seed
                   self.initialize_gnn()
                   # self.initialize_optimizer()
-                  idx_train = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/train_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).to(self.device)
+                  idx_train = torch.load("{}/{}/train_idx.pt".format(folder, i)).type(torch.long).to(self.device)
                   print('idx_train',idx_train)
-                  train_lbls = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/train_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().to(self.device)
+                  train_lbls = torch.load("{}/{}/train_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
                   print("true",i,train_lbls)
-                  idx_test = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/test_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).to(self.device)
-                  test_lbls = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/test_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().to(self.device)
+                  idx_test = torch.load("{}/{}/test_idx.pt".format(folder, i)).type(torch.long).to(self.device)
+                  test_lbls = torch.load("{}/{}/test_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
 
                   # 1. split idx_train, train_lbls, idx_test, test_lbls into two equal parts as the target/shadow datasets
                   idx_train = idx_train[int(len(idx_train)/2):]
@@ -153,13 +158,6 @@ class MIATask(BaseTask):
                         idx_test = idx_test[:len(idx_train)]
                         test_lbls = test_lbls[:len(test_lbls)]
                   print("number of train data: {}, test data: {}".format(len(idx_train), len(idx_test)))
-                  # idx_all = torch.cat((idx_train, idx_test), dim=0)
-                  # all_lbls = torch.cat((train_lbls, test_lbls), dim=0)
-                  # idx_train = idx_all[:int(len(idx_all)/2)]
-                  # train_lbls = all_lbls[:int(len(all_lbls)/2)]
-                  # idx_test = idx_all[int(len(idx_all)/2):]
-                  # test_lbls = all_lbls[int(len(all_lbls)/2):]
-
                   
                   if self.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
                         train_graphs = []
@@ -190,7 +188,8 @@ class MIATask(BaseTask):
                   if self.prompt_type == 'None':
                         test_acc, f1, roc, prc = GNNNodeEva(self.data, idx_test, self.gnn, self.answering,self.output_dim, self.device)                           
                   elif self.prompt_type == 'GPPT':
-                        test_acc, f1, roc, prc = GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device)                
+                        _, _, _, _, outs_train = GPPTEva(self.data, idx_train, self.gnn, self.prompt, self.output_dim, self.device)                
+                        test_acc, f1, roc, prc, outs_test = GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device)                
                   elif self.prompt_type == 'All-in-one':
                         _, _, _, _, outs_train = AllInOneEva(train_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)               
                         _, _, _, _, outs_test = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)                                           
@@ -199,8 +198,9 @@ class MIATask(BaseTask):
                         # ipdb.set_trace()
                         _, _, _, _, outs_train = GPFEva(train_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                         
                         _, _, _, _, outs_test = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                         
-                  # elif self.prompt_type =='Gprompt':
-                  #       test_acc, f1, roc, prc = GpromptEva(test_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
+                  elif self.prompt_type =='Gprompt':
+                        _, _, _, _, outs_train = GpromptEva(train_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
+                        _, _, _, _, outs_test = GpromptEva(test_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
                   elif self.prompt_type == 'MultiGprompt':
                         prompt_feature = self.feature_prompt(self.features)
                         test_acc, f1, roc, prc = MultiGpromptEva(test_embs, test_lbls, idx_test, prompt_feature, self.Preprompt, self.DownPrompt, self.sp_adj, self.output_dim, self.device)  
@@ -228,81 +228,5 @@ class MIATask(BaseTask):
                   test_accuracy = self.attack_eval(attack_test_data_loader)
 
             return  self.attack_model, test_accuracy
-
-                  
-            # elif self.prompt_type != 'MultiGprompt':
-            #       # embeds, _ = self.Preprompt.embed(self.features, self.sp_adj, True, None, False)
-            #       embeds, _ = self.Preprompt.embed(self.features, self.sp_adj, True, None, False)
-
-                  
-            #       test_lbls = torch.argmax(self.labels[0, self.idx_test], dim=1).cuda()
-            #       tot = torch.zeros(1)
-            #       tot = tot.cuda()
-            #       accs = []
-            #       patience = 20
-            #       print('-' * 100)
-            #       cnt_wait = 0
-            #       for i in range(1,6):
-            #             # idx_train = torch.load("./data/fewshot_cora/{}-shot_cora/{}/idx.pt".format(self.shot_num,i)).type(torch.long).cuda()
-            #             # print('idx_train',idx_train)
-            #             # train_lbls = torch.load("./data/fewshot_cora/{}-shot_cora/{}/labels.pt".format(self.shot_num,i)).type(torch.long).squeeze().cuda()
-            #             # print("true",i,train_lbls)
-            #             self.dataset_name ='Cora'
-            #             idx_train = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/train_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).cuda()
-            #             print('idx_train',idx_train)
-            #             train_lbls = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/train_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().cuda()
-            #             print("true",i,train_lbls)
-
-            #             idx_test = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/test_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).cuda()
-            #             test_lbls = torch.load("./Experiment/sample_data/Node/{}/{}_shot/{}/test_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().cuda()
-                        
-            #             test_embs = embeds[0, idx_test]
-            #             best = 1e9
-            #             pat_steps = 0
-            #             best_acc = torch.zeros(1)
-            #             best_acc = best_acc.cuda()
-            #             pretrain_embs = embeds[0, idx_train]
-            #             for _ in range(50):
-            #                   self.DownPrompt.train()
-            #                   self.optimizer.zero_grad()
-            #                   prompt_feature = self.feature_prompt(self.features)
-            #                   # prompt_feature = self.feature_prompt(self.data.x)
-            #                   # embeds1 = self.gnn(prompt_feature, self.data.edge_index)
-            #                   embeds1= self.Preprompt.gcn(prompt_feature, self.sp_adj , True, False)
-            #                   pretrain_embs1 = embeds1[0, idx_train]
-            #                   logits = self.DownPrompt(pretrain_embs,pretrain_embs1, train_lbls,1).float().cuda()
-            #                   loss = self.criterion(logits, train_lbls)
-            #                   if loss < best:
-            #                         best = loss
-            #                         cnt_wait = 0
-            #                   else:
-            #                         cnt_wait += 1
-            #                         if cnt_wait == patience:
-            #                               print('Early stopping at '+str(_) +' eopch!')
-            #                               break
-                              
-            #                   loss.backward(retain_graph=True)
-            #                   self.optimizer.step()
-
-            #             prompt_feature = self.feature_prompt(self.features)
-            #             embeds1, _ = self.Preprompt.embed(prompt_feature, self.sp_adj, True, None, False)
-            #             test_embs1 = embeds1[0, idx_test]
-            #             print('idx_test', idx_test)
-            #             logits = self.DownPrompt(test_embs, test_embs1, train_lbls)
-            #             preds = torch.argmax(logits, dim=1)
-            #             acc = torch.sum(preds == test_lbls).float() / test_lbls.shape[0]
-            #             accs.append(acc * 100)
-            #             print('acc:[{:.4f}]'.format(acc))
-            #             tot += acc
-
-            #       print('-' * 100)
-            #       print('Average accuracy:[{:.4f}]'.format(tot.item() / 10))
-            #       accs = torch.stack(accs)
-            #       print('Mean:[{:.4f}]'.format(accs.mean().item()))
-            #       print('Std :[{:.4f}]'.format(accs.std().item()))
-            #       print('-' * 100)
-                  
-            
-            # print("Node Task completed")
 
 

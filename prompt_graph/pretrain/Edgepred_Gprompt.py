@@ -18,7 +18,7 @@ class Edgepred_Gprompt(PreTrain):
 
     def generate_loader_data(self):    
         if self.dataset_name in ['PubMed', 'CiteSeer', 'Cora', 'Computers', 'Photo','ogbn-arxiv', 'Flickr','Actor', 'Texas', 'Wisconsin']:            
-            self.data, edge_label, edge_index, self.input_dim, self.output_dim = load4link_prediction_single_graph(self.dataset_name)
+            self.data, edge_label, edge_index, self.input_dim, self.output_dim = load4link_prediction_single_graph(self.dataset_name, use_different_dataset=self.use_different_dataset)
             self.adj = edge_index_to_sparse_matrix(self.data.edge_index, self.data.x.shape[0]).to(self.device)
             data = prepare_structured_data(self.data)
             if self.dataset_name in['ogbn-arxiv', 'Flickr']:
@@ -83,8 +83,15 @@ class Edgepred_Gprompt(PreTrain):
     def pretrain(self):
         num_epoch = self.epochs
         train_loss_min = 1000000
-        patience = 10
+        patience = 20
         cnt_wait = 0
+
+        if self.use_different_dataset:
+            file_path = f"./Experiment_diff_dataset/pre_train_results/{self.dataset_name}"
+        else:
+            file_path = f"./Experiment/pre_train_results/{self.dataset_name}"
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
 
         for epoch in range(1, num_epoch + 1):
             st_time = time.time()
@@ -92,6 +99,15 @@ class Edgepred_Gprompt(PreTrain):
 
             print(f"Edgepred_Gprompt [Pretrain] Epoch {epoch}/{num_epoch} | Train Loss {train_loss:.5f} | "
                   f"Cost Time {time.time() - st_time:.3}s")
+
+            filename = "Edgepred_Gprompt.{}.{}hidden_dim.seed{}.txt".format(self.gnn_type, str(self.hid_dim), self.seed)
+            save_path = os.path.join(file_path, filename)
+            # if save_path already exist, clear all existing contents
+            if (epoch == 1) and (os.path.exists(save_path)): 
+                os.remove(save_path) 
+            with open(save_path, 'a') as f:
+                f.write('%d %.8f'%(epoch, train_loss))
+                f.write("\n")
             
             if train_loss_min > train_loss:
                 train_loss_min = train_loss
@@ -104,11 +120,13 @@ class Edgepred_Gprompt(PreTrain):
                     break
             print(cnt_wait)
 
-        folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
+        if self.use_different_dataset:
+            folder_path = f"./Experiment_diff_dataset/pre_trained_model/{self.dataset_name}"
+        else:
+            folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
         torch.save(self.gnn.state_dict(),
-                    "./Experiment/pre_trained_model/{}/{}.{}.{}.pth".format(self.dataset_name, 'Edgepred_Gprompt', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))
-        
+                    "{}/{}.{}.{}.pth".format(folder_path, 'Edgepred_Gprompt', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))
         print("+++model saved ! {}/{}.{}.{}.pth".format(self.dataset_name, 'Edgepred_Gprompt', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))

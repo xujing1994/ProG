@@ -8,15 +8,15 @@ seed_everything(args.seed)
 if __name__ == '__main__':
     print('Dataset: {}, Pretrain: {}, GNN: {}, Seed: {}'.format(args.dataset_name, args.task, args.gnn_type, args.seed))
     if args.task == 'SimGRACE':
-        pt = SimGRACE(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device)
+        pt = SimGRACE(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device, seed=args.seed, use_different_dataset=args.use_different_dataset)
     if args.task == 'GraphCL':
-        pt = GraphCL(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device, use_different_dataset=args.use_different_dataset)
+        pt = GraphCL(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device, seed=args.seed, use_different_dataset=args.use_different_dataset)
     if args.task == 'Edgepred_GPPT':
-        pt = Edgepred_GPPT(dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device)
+        pt = Edgepred_GPPT(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device, seed=args.seed, use_different_dataset=args.use_different_dataset)
     if args.task == 'Edgepred_Gprompt':
-        pt = Edgepred_Gprompt(dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device)
+        pt = Edgepred_Gprompt(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device, seed=args.seed, use_different_dataset=args.use_different_dataset)
     if args.task == 'DGI':
-        pt = DGI(dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device)
+        pt = DGI(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device, seed=args.seed, use_different_dataset=args.use_different_dataset)
     if args.task == 'NodeMultiGprompt': # out of scope of paper
         nonlinearity = 'prelu'
         pt = NodePrePrompt(args.dataset_name, args.hid_dim, nonlinearity, 0.9, 0.9, 0.1, 0.001, 1, 0.3)
@@ -24,7 +24,7 @@ if __name__ == '__main__':
         nonlinearity = 'prelu'
         pt = GraphPrePrompt(graph_list, input_dim, out_dim, args.dataset_name, args.hid_dim, nonlinearity,0.9,0.9,0.1,1,0.3)
     if args.task == 'GraphMAE':
-        pt = GraphMAE(dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device,
-                    mask_rate=0.75, drop_edge_rate=0.0, replace_rate=0.1, loss_fn='sce', alpha_l=2)
+        pt = GraphMAE(graph_list=None, input_dim=None, dataset_name = args.dataset_name, gnn_type = args.gnn_type, hid_dim = args.hid_dim, gln = args.num_layer, num_epoch=args.epochs, device=args.device,
+                    mask_rate=0.75, drop_edge_rate=0.0, replace_rate=0.1, loss_fn='sce', alpha_l=2, seed=args.seed, use_different_dataset=args.use_different_dataset)
     pt.pretrain()
 

@@ -23,7 +23,7 @@ class SimGRACE(PreTrain):
         
     def load_graph_data(self):
         if self.dataset_name in ['PubMed', 'CiteSeer', 'Cora','Computers', 'Photo', 'Reddit', 'WikiCS', 'Flickr','ogbn-arxiv', 'Actor', 'Texas', 'Wisconsin']:
-            self.graph_list, self.input_dim = NodePretrain(dataname = self.dataset_name, num_parts=200)
+            self.graph_list, self.input_dim = NodePretrain(dataname = self.dataset_name, num_parts=500, use_different_dataset=self.use_different_dataset)
         else:
             self.input_dim, self.out_dim, self.graph_list= load4graph(self.dataset_name,pretrained=True)
         
@@ -85,37 +85,78 @@ class SimGRACE(PreTrain):
             # print("第{}次gnn batch传播，loss是{}".format(step,train_loss_accum))
         return train_loss_accum / total_step
 
+    def test_simgrace(self, loader):
+        self.eval()
+        test_loss_accum = 0
+        total_step = 0
+        for data in loader:
+            data = data.to(self.device)
+            x2 = self.perturbate_gnn(data) 
+            x1 = self.forward_cl(data.x, data.edge_index, data.batch)
+            x2 = Variable(x2.detach().data.to(self.device), requires_grad=False)
+            loss = self.loss_cl(x1, x2)
+            test_loss_accum += float(loss.detach().cpu().item())
+            total_step = total_step + 1
+            # print("第{}次gnn batch传播，loss是{}".format(step,train_loss_accum))
+        return test_loss_accum / total_step
+
     def pretrain(self, batch_size=10, lr=0.01,decay=0.0001):
         epochs = self.epochs
         if self.dataset_name in ['COLLAB', 'IMDB-BINARY', 'REDDIT-BINARY', 'ogbg-ppa', 'DD']:
             batch_size = 512
-        loader = self.get_loader(self.graph_list, batch_size)
+        train_graph_list = self.graph_list[:int(len(self.graph_list)*0.8)]
+        test_graph_list = self.graph_list[int(len(self.graph_list)*0.8):]
+        train_loader= self.get_loader(train_graph_list, batch_size)
+        test_loader = self.get_loader(test_graph_list, batch_size)
+
         print('start training {} | {} | {}...'.format(self.dataset_name, 'SimGRACE', self.gnn_type))
         optimizer = optim.Adam(self.gnn.parameters(), lr=lr, weight_decay=decay)
 
         train_loss_min = 1000000
-        patience = 10
+        patience = 20
         cnt_wait = 0
+
+        if self.use_different_dataset:
+            file_path = f"./Experiment_diff_dataset/pre_train_results/{self.dataset_name}"
+        else:
+            file_path = f"./Experiment/pre_train_results/{self.dataset_name}"
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
+
         for epoch in range(1, self.epochs + 1):  # 1..100
 
-            train_loss = self.train_simgrace(loader, optimizer)
+            train_loss = self.train_simgrace(train_loader, optimizer)
+            test_loss = self.test_simgrace(test_loader)
 
-            print("***epoch: {}/{} | train_loss: {:.8}".format(epoch, self.epochs, train_loss))
+            print("***epoch: {}/{} | train_loss: {:.8} | test_loss: {:.8}".format(epoch, self.epochs, train_loss, test_loss))
 
-            # if train_loss_min > train_loss:
-            #     train_loss_min = train_loss
-            #     cnt_wait = 0
-            # else:
-            #     cnt_wait += 1
-            #     if cnt_wait == patience:
-            #         print('-' * 100)
-            #         print('Early stopping at '+str(epoch) +' eopch!')
-            #         break
-            # print(cnt_wait)
+            filename = "SimGRACE.{}.{}hidden_dim.seed{}.txt".format(self.gnn_type, str(self.hid_dim), self.seed)
+            save_path = os.path.join(file_path, filename)
+            # if save_path already exist, clear all existing contents
+            if (epoch == 1) and (os.path.exists(save_path)): 
+                os.remove(save_path) 
+            with open(save_path, 'a') as f:
+                f.write('%d %.8f %.8f'%(epoch, train_loss, test_loss))
+                f.write("\n")
 
-        folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
+            if train_loss_min > train_loss:
+                train_loss_min = train_loss
+                cnt_wait = 0
+            else:
+                cnt_wait += 1
+                if cnt_wait == patience:
+                    print('-' * 100)
+                    print('Early stopping at '+str(epoch) +' eopch!')
+                    break
+            print(cnt_wait)
+
+        if self.use_different_dataset:
+            folder_path = f"./Experiment_diff_dataset/pre_trained_model/{self.dataset_name}"
+        else:
+            folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
+
         torch.save(self.gnn.state_dict(),
-                    "./Experiment/pre_trained_model/{}/{}.{}.{}.pth".format(self.dataset_name, 'SimGRACE', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))
+                    "{}/{}.{}.{}.pth".format(folder_path, 'SimGRACE', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))
         print("+++model saved ! {}/{}.{}.{}.pth".format(self.dataset_name, 'SimGRACE', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))

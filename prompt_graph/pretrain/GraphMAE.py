@@ -199,7 +199,7 @@ class GraphMAE(PreTrain):
     def load_graph_data(self):
 
         if self.dataset_name in ['PubMed', 'CiteSeer', 'Cora','Computers', 'Photo', 'Reddit', 'WikiCS', 'Flickr', 'ogbn-arxiv', 'Actor', 'Texas', 'Wisconsin']:
-            graph_list, in_node_feat_dim = NodePretrain(dataname = self.dataset_name, num_parts=200)
+            graph_list, in_node_feat_dim = NodePretrain(dataname = self.dataset_name, num_parts=200, use_different_dataset=self.use_different_dataset)
             # data = Batch.from_data_list(graph_list)
         elif self.dataset_name in ['MUTAG', 'ENZYMES', 'COLLAB', 'PROTEINS', 'IMDB-BINARY', 'REDDIT-BINARY', 'COX2', 'BZR', 'PTC_MR', 'ogbg-ppa', 'DD']:
             in_node_feat_dim, _, graph_list= load4graph(self.dataset_name,pretrained=True)
@@ -217,8 +217,16 @@ class GraphMAE(PreTrain):
         loss_metric = MeanMetric()
 
         train_loss_min = np.inf
-        patience = 10
+        patience = 20
         cnt_wait = 0
+
+        if self.use_different_dataset:
+            file_path = f"./Experiment_diff_dataset/pre_train_results/{self.dataset_name}"
+        else:
+            file_path = f"./Experiment/pre_train_results/{self.dataset_name}"
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
+
         for epoch in range(self.epochs):
             st_time = time.time()
             
@@ -234,6 +242,15 @@ class GraphMAE(PreTrain):
 
             print(f"GraphMAE [Pretrain] Epoch {epoch}/{self.epochs} | Train Loss {loss_metric.compute():.5f} | "
                   f"Cost Time {time.time() - st_time:.3}s")
+
+            filename = "GraphMAE.{}.{}hidden_dim.seed{}.txt".format(self.gnn_type, str(self.hid_dim), self.seed)
+            save_path = os.path.join(file_path, filename)
+            # if save_path already exist, clear all existing contents
+            if (epoch == 1) and (os.path.exists(save_path)): 
+                os.remove(save_path) 
+            with open(save_path, 'a') as f:
+                f.write('%d %.8f'%(epoch, loss_metric.compute()))
+                f.write("\n")
             
             if train_loss_min > loss_metric.compute():
                 train_loss_min = loss_metric.compute()
@@ -246,11 +263,13 @@ class GraphMAE(PreTrain):
                     break
             print(cnt_wait)
 
-        folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
+        if self.use_different_dataset:
+            folder_path = f"./Experiment_diff_dataset/pre_trained_model/{self.dataset_name}"
+        else:
+            folder_path = f"./Experiment/pre_trained_model/{self.dataset_name}"
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
 
         torch.save(self.gnn.state_dict(),
-                    "./Experiment/pre_trained_model/{}/{}.{}.{}.pth".format(self.dataset_name, 'GraphMAE', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))
-        
-        print("+++model saved ! {}/{}.{}.{}.pth".format(self.dataset_name, 'GraphMAE', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))                
+                    "{}/{}.{}.{}.pth".format(folder_path, 'GraphMAE', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))
+        print("+++model saved ! {}/{}.{}.{}.pth".format(self.dataset_name, 'GraphMAE', self.gnn_type, str(self.hid_dim) + 'hidden_dim'))

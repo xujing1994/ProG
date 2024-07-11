@@ -51,7 +51,7 @@ if __name__ == "__main__":
         device = torch.device('cuda:' + str(args.device) if torch.cuda.is_available() else 'cpu')
         data = data.to(device)
         if args.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
-            graphs_list = load_induced_graph(args.dataset_name, data, device, args.use_different_dataset) 
+            graphs_list = load_induced_graph(args.dataset_name, data, device, args.use_different_dataset)  # the debugging on Gprompt method is still in process
         else:
             graphs_list = None 
             
@@ -64,12 +64,12 @@ if __name__ == "__main__":
                         dataset_name = args.dataset_name, num_layer = args.num_layer,
                         gnn_type = args.gnn_type, hid_dim = args.hid_dim, prompt_type = args.prompt_type,
                         epochs = args.epochs, shot_num = args.shot_num, device=args.device, lr = args.lr, wd = args.decay,
-                        batch_size = args.batch_size, seed = args.seed, data = data, input_dim = input_dim, output_dim = output_dim, graphs_list = graphs_list)
+                        batch_size = args.batch_size, seed = args.seed, data = data, input_dim = input_dim, output_dim = output_dim, graphs_list = graphs_list, use_different_dataset=args.use_different_dataset)
         tasker_shadow = NodeTask(pre_train_model_path = args.pre_train_model_path, 
                         dataset_name = args.dataset_name, num_layer = args.num_layer,
                         gnn_type = args.gnn_type, hid_dim = args.hid_dim, prompt_type = args.prompt_type,
                         epochs = args.epochs, shot_num = args.shot_num, device=args.device, lr = args.lr, wd = args.decay,
-                        batch_size = args.batch_size, seed = args.seed, data = data, input_dim = input_dim, output_dim = output_dim, graphs_list = graphs_list)
+                        batch_size = args.batch_size, seed = args.seed, data = data, input_dim = input_dim, output_dim = output_dim, graphs_list = graphs_list, use_different_dataset=args.use_different_dataset)
 
     if args.task == 'GraphTask':
         tasker = GraphTask(pre_train_model_path = args.pre_train_model_path, 
@@ -102,10 +102,14 @@ if __name__ == "__main__":
         folder = "./Experiment_diff_dataset/ExcelResults"
     else:
         folder = "./Experiment/ExcelResults"
+    
     if args.task == 'NodeTask':
         file_path = os.path.join('{}/Node/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
     else:
         file_path = os.path.join('{}/Graph/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
+    folder_path = os.path.split(file_path)[0]
+    if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
     with open(file_path, 'a') as f:
         print(file_path)
         #f.write("pre_train+prompt learning_rate weight_decay batch_size Final_Accuracy Final_F1 Final_AUROC")

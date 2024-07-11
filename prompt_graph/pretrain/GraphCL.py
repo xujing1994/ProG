@@ -22,7 +22,7 @@ class GraphCL(PreTrain):
     def load_graph_data(self):
 
         if self.dataset_name in ['PubMed', 'CiteSeer', 'Cora','Computers', 'Photo', 'Reddit', 'WikiCS', 'Flickr', 'ogbn-arxiv','Actor', 'Texas', 'Wisconsin']:
-            self.graph_list, self.input_dim = NodePretrain(dataname = self.dataset_name, num_parts=200, split_method='Cluster', use_different_dataset = self.use_different_dataset)
+            self.graph_list, self.input_dim = NodePretrain(dataname = self.dataset_name, num_parts=500, split_method='Cluster', use_different_dataset = self.use_different_dataset)
             # self.graph_list, self.input_dim = NodePretrain(dataname = self.dataset_name, num_parts=0, split_method='Random Walk')
         else:
             self.input_dim, self.out_dim, self.graph_list= load4graph(self.dataset_name,pretrained=True)
@@ -119,24 +119,28 @@ class GraphCL(PreTrain):
         self.to(self.device)
         if self.dataset_name in ['COLLAB', 'IMDB-BINARY', 'REDDIT-BINARY', 'ogbg-ppa', 'DD']:
             batch_size = 512
-        train_graph_list = self.graph_list[:int(len(self.graph_list)/2)]
-        test_graph_list = self.graph_list[int(len(self.graph_list)/2):]
+        train_graph_list = self.graph_list[:int(len(self.graph_list)*0.8)]
+        test_graph_list = self.graph_list[int(len(self.graph_list)*0.8):]
         loader1, loader2 = self.get_loader(train_graph_list, batch_size, aug1=aug1, aug2=aug2)
         test_loader1, test_loader2 = self.get_loader(test_graph_list, batch_size, aug1=aug1, aug2=aug2)
         print('start training {} | {} | {}...'.format(self.dataset_name, 'GraphCL', self.gnn_type))
         optimizer = Adam(self.parameters(), lr=lr, weight_decay=decay)
 
         train_loss_min = 1000000
-        patience = 10
+        patience = 20
         cnt_wait = 0
+        if self.use_different_dataset:
+            file_path = f"./Experiment_diff_dataset/pre_train_results/{self.dataset_name}"
+        else:
+            file_path = f"./Experiment/pre_train_results/{self.dataset_name}"
+        if not os.path.exists(file_path):
+            os.makedirs(file_path)
+
         for epoch in range(1, self.epochs + 1):  # 1..100
             train_loss = self.train_graphcl(loader1, loader2, optimizer)
             test_loss = self.test_graphcl(test_loader1, test_loader2)
             print("***epoch: {}/{} | train_loss: {:.8} | test_loss: {:.8}".format(epoch, self.epochs, train_loss, test_loss))
 
-            file_path = f"./Experiment/pre_train_results/{self.dataset_name}"
-            if not os.path.exists(file_path):
-                os.makedirs(file_path)
             filename = "GraphCL.{}.{}hidden_dim.seed{}.txt".format(self.gnn_type, str(self.hid_dim), self.seed)
             save_path = os.path.join(file_path, filename)
             # if save_path already exist, clear all existing contents
@@ -147,16 +151,16 @@ class GraphCL(PreTrain):
                 f.write("\n")
 
 
-            # if train_loss_min > train_loss:
-            #     train_loss_min = train_loss
-            #     cnt_wait = 0
-            # else:
-            #     cnt_wait += 1
-            #     if cnt_wait == patience:
-            #         print('-' * 100)
-            #         print('Early stopping at '+str(epoch) +' eopch!')
-            #         break
-            # print(cnt_wait)
+            if train_loss_min > train_loss:
+                train_loss_min = train_loss
+                cnt_wait = 0
+            else:
+                cnt_wait += 1
+                if cnt_wait == patience:
+                    print('-' * 100)
+                    print('Early stopping at '+str(epoch) +' eopch!')
+                    break
+            print(cnt_wait)
             # write training results to a file
 
         if self.use_different_dataset:

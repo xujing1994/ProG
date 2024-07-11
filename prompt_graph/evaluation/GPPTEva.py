@@ -22,7 +22,7 @@ def GPPTEva(data, idx_test, gnn, prompt, num_class, device):
     f1 = macro_f1(pred[idx_test], data.y[idx_test])
     roc = auroc(out[idx_test], data.y[idx_test]) 
     prc = auprc(out[idx_test], data.y[idx_test]) 
-    return acc.item(), f1.item(), roc.item(),prc.item()
+    return acc.item(), f1.item(), roc.item(),prc.item(), out[idx_test]
 
 def GPPTGraphEva(loader, gnn, prompt, num_class, device):
     # batch must be 1

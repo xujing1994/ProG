@@ -26,11 +26,12 @@ def node_sample_and_save(data, k, folder, num_classes):
     print(num_test)
     if num_test < 1000:
         num_test = int(0.7 * data.num_nodes)
-    test_idx = torch.randperm(data.num_nodes)[:num_test]
+    all_idx = torch.randperm(data.num_nodes)
+    test_idx = all_idx[:num_test]
     test_labels = labels[test_idx]
     
     # 剩下的作为候选训练集
-    remaining_idx = torch.randperm(data.num_nodes)[num_test:]
+    remaining_idx = all_idx[num_test:]
     remaining_labels = labels[remaining_idx]
     
     # 从剩下的数据中选出k*标签数个样本作为训练集
@@ -167,7 +168,6 @@ def load4graph(dataset_name, shot_num= 10, num_parts=None, pretrained=False):
 
 def svd_transformer(X):
     # Standardize the features (important for SVD)
-    ipdb.set_trace()
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
 
@@ -189,6 +189,8 @@ def svd_transformer(X):
 
     # Transform both the training and test data to the selected number of components
     # X_svd_selected = svd.transform(X)[:, :n_components]
+    X_svd = torch.from_numpy(X_svd)
+    X_svd = X_svd.type(torch.float32)
     return X_svd, n_components
     
 def load4node(dataname, use_different_dataset):
@@ -197,7 +199,6 @@ def load4node(dataname, use_different_dataset):
         dataset = Planetoid(root='data/Planetoid', name=dataname, transform=NormalizeFeatures())
         data = dataset[0]
         if use_different_dataset:
-            ipdb.set_trace()
             data.x, input_dim = svd_transformer(data.x)
             # input_dim = 1433
         else:
@@ -242,8 +243,8 @@ def load4node(dataname, use_different_dataset):
     return data, input_dim, out_dim
 
 
-def load4link_prediction_single_graph(dataname, num_per_samples=1):
-    data, input_dim, output_dim = load4node(dataname)
+def load4link_prediction_single_graph(dataname, num_per_samples=1, use_different_dataset=False):
+    data, input_dim, output_dim = load4node(dataname, use_different_dataset)
 
     
     r"""Perform negative sampling to generate negative neighbor samples"""

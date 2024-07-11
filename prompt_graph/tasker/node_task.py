@@ -211,7 +211,7 @@ class NodeTask(BaseTask):
             if self.prompt_type == 'All-in-one':
                   self.answer_epoch = 50
                   self.prompt_epoch = 50
-                  self.epochs = int(self.epochs/self.answer_epoch)
+                  self.epochs = int(self.epochs/10)
             if self.use_different_dataset:
                   folder = "./Experiment_diff_dataset/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
             else:
@@ -220,30 +220,24 @@ class NodeTask(BaseTask):
                   self.initialize_gnn()
                   self.initialize_prompt()
                   self.initialize_optimizer()
-                  idx_train = torch.load("{}/{}/train_idx.pt".format(folder, i)).type(torch.long).to(self.device)
-                  print('idx_train',idx_train)
-                  train_lbls = torch.load("{}/{}/train_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
-                  print("true",i,train_lbls)
-                  idx_test = torch.load("{}/{}/test_idx.pt".format(folder, i)).type(torch.long).to(self.device)
-                  test_lbls = torch.load("{}/{}/test_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
+                  idx_train_ = torch.load("{}/{}/train_idx.pt".format(folder, i)).type(torch.long).to(self.device)
+                  print('idx_train',idx_train_)
+                  train_lbls_ = torch.load("{}/{}/train_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
+                  print("true",i,train_lbls_)
+                  idx_test_ = torch.load("{}/{}/test_idx.pt".format(folder, i)).type(torch.long).to(self.device)
+                  test_lbls_ = torch.load("{}/{}/test_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
 
                   # 1. split idx_train, train_lbls, idx_test, test_lbls into two equal parts as the target/shadow datasets
                   if flag == 'target':
-                        idx_train = idx_train[:int(len(idx_train)/2)]
-                        train_lbls = train_lbls[:int(len(train_lbls)/2)]
-                        idx_test = idx_test[:int(len(idx_test)/2)]
-                        test_lbls = test_lbls[:int(len(test_lbls)/2)]
+                        idx_train = idx_train_[:int(len(idx_train_)/2)]
+                        train_lbls = train_lbls_[:int(len(train_lbls_)/2)]
+                        idx_test = idx_test_[:int(len(idx_test_)/2)]
+                        test_lbls = test_lbls_[:int(len(test_lbls_)/2)]
                   elif flag == 'shadow':
-                        idx_train = idx_train[int(len(idx_train)/2):]
-                        train_lbls = train_lbls[int(len(train_lbls)/2):]
-                        idx_test = idx_test[int(len(idx_test)/2):]
-                        test_lbls = test_lbls[int(len(test_lbls)/2):]
-                        # idx_all = torch.cat((idx_train, idx_test), dim=0)
-                        # all_lbls = torch.cat((train_lbls, test_lbls), dim=0)
-                        # idx_train = idx_all[:int(len(idx_all)/2)]
-                        # train_lbls = all_lbls[:int(len(all_lbls)/2)]
-                        # idx_test = idx_all[int(len(idx_all)/2):]
-                        # test_lbls = all_lbls[int(len(all_lbls)/2):]
+                        idx_train = idx_train_[int(len(idx_train_)/2):]
+                        train_lbls = train_lbls_[int(len(train_lbls_)/2):]
+                        idx_test = idx_test_[int(len(idx_test_)/2):]
+                        test_lbls = test_lbls_[int(len(test_lbls_)/2):]
 
                   # GPPT prompt initialtion
                   if self.prompt_type == 'GPPT':
@@ -304,17 +298,17 @@ class NodeTask(BaseTask):
                               loss = self.MultiGpromptTrain(pretrain_embs, train_lbls, idx_train)
 
                         # comment early stopping
-                        # if loss < best:
-                        #       best = loss
-                        #       # best_t = epoch
-                        #       cnt_wait = 0
-                        #       # torch.save(model.state_dict(), args.save_name)
-                        # else:
-                        #       cnt_wait += 1
-                        #       if cnt_wait == patience:
-                        #             print('-' * 100)
-                        #             print('Early stopping at '+str(epoch) +' eopch!')
-                        #             break
+                        if loss < best:
+                              best = loss
+                              # best_t = epoch
+                              cnt_wait = 0
+                              # torch.save(model.state_dict(), args.save_name)
+                        else:
+                              cnt_wait += 1
+                              if cnt_wait == patience:
+                                    print('-' * 100)
+                                    print('Early stopping at '+str(epoch) +' eopch!')
+                                    break
                         
                         print("Epoch {:03d} |  Time(s) {:.4f} | Loss {:.4f}  ".format(epoch, time.time() - t0, loss))
                   # train the attack model if flag == 'shadow'
@@ -333,7 +327,7 @@ class NodeTask(BaseTask):
                               # ipdb.set_trace()
                               test_acc, f1, roc, prc, _ = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                         
                         elif self.prompt_type =='Gprompt':
-                              test_acc, f1, roc, prc = GpromptEva(test_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
+                              test_acc, f1, roc, prc, _ = GpromptEva(test_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
                         elif self.prompt_type == 'MultiGprompt':
                               prompt_feature = self.feature_prompt(self.features)
                               test_acc, f1, roc, prc = MultiGpromptEva(test_embs, test_lbls, idx_test, prompt_feature, self.Preprompt, self.DownPrompt, self.sp_adj, self.output_dim, self.device)

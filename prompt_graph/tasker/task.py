@@ -52,7 +52,7 @@ class BaseTask:
                 # self.optimizer = optim.Adam(self.answering.parameters(), lr=self.lr, weight_decay=self.wd)
 
         elif self.prompt_type == 'All-in-one':
-            self.pg_opi = optim.Adam( self.prompt.parameters(), lr=1e-6, weight_decay= self.wd)
+            self.pg_opi = optim.Adam( self.prompt.parameters(), lr=1e-3, weight_decay= self.wd)
             self.answer_opi = optim.Adam( self.answering.parameters(), lr=self.lr, weight_decay= self.wd)
         elif self.prompt_type in ['GPF', 'GPF-plus']:
             model_param_group = []
