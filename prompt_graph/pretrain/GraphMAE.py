@@ -125,6 +125,8 @@ class GraphMAELoss(nn.Module):
             perm_mask = torch.randperm(num_mask_nodes, device=x.device)
             token_nodes = mask_nodes[perm_mask[: int(self._mask_token_rate * num_mask_nodes)]]
             noise_nodes = mask_nodes[perm_mask[-int(self._replace_rate * num_mask_nodes):]]
+            if num_noise_nodes == 0:
+                 noise_nodes = mask_nodes[:num_noise_nodes]
             noise_to_be_chosen = torch.randperm(num_nodes, device=x.device)[:num_noise_nodes]
             out_x = x.clone()
             out_x[token_nodes] = 0.0
@@ -199,7 +201,7 @@ class GraphMAE(PreTrain):
     def load_graph_data(self):
 
         if self.dataset_name in ['PubMed', 'CiteSeer', 'Cora','Computers', 'Photo', 'Reddit', 'WikiCS', 'Flickr', 'ogbn-arxiv', 'Actor', 'Texas', 'Wisconsin']:
-            graph_list, in_node_feat_dim = NodePretrain(dataname = self.dataset_name, num_parts=200, use_different_dataset=self.use_different_dataset)
+            graph_list, in_node_feat_dim = NodePretrain(dataname = self.dataset_name, num_parts=500, use_different_dataset=self.use_different_dataset)
             # data = Batch.from_data_list(graph_list)
         elif self.dataset_name in ['MUTAG', 'ENZYMES', 'COLLAB', 'PROTEINS', 'IMDB-BINARY', 'REDDIT-BINARY', 'COX2', 'BZR', 'PTC_MR', 'ogbg-ppa', 'DD']:
             in_node_feat_dim, _, graph_list= load4graph(self.dataset_name,pretrained=True)
@@ -235,7 +237,7 @@ class GraphMAE(PreTrain):
             for step, batch in enumerate(self.graph_dataloader):
                 self.optimizer.zero_grad()
                 batch = batch.to(self.device)
-                loss, loss_item, x_hidden = self.loss.forward(batch)              
+                loss, loss_item, x_hidden = self.loss.forward(batch)       # error:RuntimeError: shape mismatch: value tensor of shape [0, 1433] cannot be broadcast to indexing result of shape [8, 1433]
                 loss.backward()
                 self.optimizer.step() 
                 loss_metric.update(loss.item(), batch.size(0))

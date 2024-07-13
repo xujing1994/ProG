@@ -45,9 +45,12 @@ if __name__ == "__main__":
     print("Dataset: {}, GNN: {}, Pretrain: {}, Prompt: {}, ShotNum: {}, Seed: {}".format(args.dataset_name, args.gnn_type, pretrain_type, args.prompt_type, args.shot_num, args.seed))
     if args.dataset_name not in args.pre_train_model_path :
          # use different dataset for prompt fine-tuning
-         use_different_dataset = True
+         args.use_different_dataset = True
+    else:
+        args.use_different_dataset = False
+        args.pre_train_data = args.dataset_name
     if args.task == 'NodeTask':
-        data, input_dim, output_dim = load4node(args.dataset_name, use_different_dataset)   
+        data, input_dim, output_dim = load4node(args.dataset_name, args.use_different_dataset)   
         device = torch.device('cuda:' + str(args.device) if torch.cuda.is_available() else 'cpu')
         data = data.to(device)
         if args.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
@@ -104,9 +107,9 @@ if __name__ == "__main__":
         folder = "./Experiment/ExcelResults"
     
     if args.task == 'NodeTask':
-        file_path = os.path.join('{}/Node/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
+        file_path = os.path.join('{}/Node/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'_'+args.pre_train_data + '/', file_name)
     else:
-        file_path = os.path.join('{}/Graph/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'/', file_name)
+        file_path = os.path.join('{}/Graph/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'_'+args.pre_train_data + '/', file_name)
     folder_path = os.path.split(file_path)[0]
     if not os.path.exists(folder_path):
             os.makedirs(folder_path)
@@ -115,6 +118,7 @@ if __name__ == "__main__":
         #f.write("pre_train+prompt learning_rate weight_decay batch_size Final_Accuracy Final_F1 Final_AUROC")
         f.write("{}+{} {} {} {} {} {} {} {} {}+{} {}+{} {}+{} {}+{} {}+{} {}+{} {}".format(pre_train_type, args.prompt_type, args.lr, args.decay, args.batch_size, args.epochs, args.shot_num, args.hid_dim, args.seed, test_acc, std_test_acc, f1, std_f1, roc, std_roc, test_acc_shadow, std_test_acc_shadow, f1_shadow, std_f1_shadow, roc_shadow, std_roc_shadow, asr))
         f.write("\n")
+
 
     
 
