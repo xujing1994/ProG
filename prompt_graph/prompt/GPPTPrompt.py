@@ -2,6 +2,7 @@ import torch
 from sklearn.cluster import KMeans
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree
+import ipdb
 
 
 class SimpleMeanConv(MessagePassing):
@@ -58,7 +59,6 @@ class GPPTPrompt(torch.nn.Module):
         
         features=h[index]
         labels=label[index.long()]  # labels变量的类别不全
-
         cluster = KMeans(n_clusters=self.center_num,random_state=0).fit(features.detach().cpu())
         temp=torch.FloatTensor(cluster.cluster_centers_).to(self.device)
         self.StructureToken.weight.data = temp.clone().detach()

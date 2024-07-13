@@ -207,7 +207,11 @@ def load4node(dataname, use_different_dataset):
     elif dataname in ['Computers', 'Photo']:
         dataset = Amazon(root='data/amazon', name=dataname)
         data = dataset[0]
-        input_dim = dataset.num_features
+        if use_different_dataset:
+            data.x, input_dim = svd_transformer(data.x)
+        else:
+            input_dim = dataset.num_features
+        #input_dim = dataset.num_features
         out_dim = dataset.num_classes
     elif dataname == 'Reddit':
         dataset = Reddit(root='data/Reddit')
@@ -237,7 +241,10 @@ def load4node(dataname, use_different_dataset):
     elif dataname == 'ogbn-arxiv':
         dataset = PygNodePropPredDataset(name='ogbn-arxiv', root='./data')
         data = dataset[0]
-        input_dim = data.x.shape[1]
+        if use_different_dataset:
+            data.x, input_dim = svd_transformer(data.x)
+        else:
+            input_dim = data.x.shape[1]
         out_dim = dataset.num_classes
 
     return data, input_dim, out_dim

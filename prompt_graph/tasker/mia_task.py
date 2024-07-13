@@ -88,7 +88,7 @@ class MIATask(BaseTask):
                         # print(top_p)
                         equals = top_class == labels.view(*top_class.shape)  # making the shape of the label and top class the same
                         train_accuracy += torch.mean(equals.type(torch.FloatTensor))
-                        loss.backward()
+                        loss.backward(retain_graph=True)
                         optimizer.step()
                         running_loss += loss.item()
                         count += 1

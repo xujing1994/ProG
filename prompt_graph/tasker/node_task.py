@@ -320,11 +320,10 @@ class NodeTask(BaseTask):
                         if self.prompt_type == 'None':
                               test_acc, f1, roc, prc = GNNNodeEva(self.data, idx_test, self.gnn, self.answering,self.output_dim, self.device)                           
                         elif self.prompt_type == 'GPPT':
-                              test_acc, f1, roc, prc = GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device)                
+                              test_acc, f1, roc, prc, _ = GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device)                
                         elif self.prompt_type == 'All-in-one':
                               test_acc, f1, roc, prc, _ = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)                                           
                         elif self.prompt_type in ['GPF', 'GPF-plus']:
-                              # ipdb.set_trace()
                               test_acc, f1, roc, prc, _ = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                         
                         elif self.prompt_type =='Gprompt':
                               test_acc, f1, roc, prc, _ = GpromptEva(test_loader, self.gnn, self.prompt, center, self.output_dim, self.device)

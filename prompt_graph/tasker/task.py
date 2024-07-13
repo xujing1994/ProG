@@ -106,6 +106,7 @@ class BaseTask:
             self.DownPrompt = downprompt(dgiprompt, graphcledgeprompt, lpprompt, 0.001, self.hid_dim, self.output_dim, self.device).to(self.device)
         else:
             raise KeyError(" We don't support this kind of prompt.")
+        
 
     def initialize_gnn(self):
         if self.gnn_type == 'GAT':
