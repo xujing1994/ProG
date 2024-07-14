@@ -31,7 +31,9 @@ N_Ss = range(1, 11)
 def read_data(path):
     d = np.zeros(((len(Pretrains), len(Prompts), 7))) # [len(Pretrains), len(Prompts), 7]
     with open(path, 'r') as f:
-        for line in f.readlines()[1:]:
+        for line in f.readlines()[:]:
+            if line.split(' ')[0] == 'pre_train+prompt':
+                continue
             line = line.replace('+0.0', '')
             line = line.replace('\n', '')
             data = line.split(' ')
@@ -74,13 +76,13 @@ def draw_bar(data, dataset, pre_train_data, model, shot_num):
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax.set_ylabel('Accuracy (%)')
-    ax.set_title('Downstream task ({}_{}+GCN+10 shot)'.format(dataset, pre_train_data))
+    ax.set_title('Downstream task ({}_{}+GCN+10 shot)'.format(pre_train_data, dataset))
     ax.set_xticks(x + width, species)
     ax.legend(loc='upper left', ncols=3)
     ax.set_ylim(0, 1)
 
     # plt.show()
-    save_path = "./figs/" + '{}_{}_{}_{}.png'.format(dataset, pre_train_data, model, shot_num)
+    save_path = "./figs/" + '{}_{}_{}_{}.png'.format(pre_train_data, dataset, model, shot_num)
     plt.savefig(save_path, format='png', bbox_inches='tight', dpi=1200)
     plt.close()
     print('save fig done')
@@ -88,7 +90,8 @@ def draw_bar(data, dataset, pre_train_data, model, shot_num):
 if __name__ == "__main__":
     dataset = 'Cora'
     pre_train_data = 'Photo'
-    if dataset != pre_train_data:
+    use_different_dataset = True
+    if use_different_dataset:
         path = "./Experiment_diff_dataset/ExcelResults/Node/10shot/{}_{}/GCN_total_results.txt".format(dataset, pre_train_data)
     else:
         path = "./Experiment/ExcelResults/Node/10shot/{}_{}/GCN_total_results.txt".format(dataset, pre_train_data)
