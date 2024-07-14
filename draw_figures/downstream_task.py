@@ -49,8 +49,8 @@ def read_data(path):
                 print(Pretrains[i], path)
     return d
 
-def draw_bar(data, dataset, model, shot_num):
-    species = ('GraphCL', 'SimGRACE', 'Edgepred_GPPT', 'Edgepred_Gprompt', 'DGI', 'GraphMAE')
+def draw_bar(data, dataset, pre_train_data, model, shot_num):
+    species = ('GraphCL', 'SimGRACE', 'Edgepred_ \n GPPT', 'Edgepred_ \n Gprompt', 'DGI', 'GraphMAE')
     # penguin_means = {
     #     'All-in-one': data[:, 0, 0],
     #     'GPF': data[:, 1, 0],
@@ -58,7 +58,7 @@ def draw_bar(data, dataset, model, shot_num):
     # }
 
     x = np.arange(len(species))  # the label locations
-    width = 0.25  # the width of the bars
+    width = 0.16  # the width of the bars
     multiplier = 0
 
     fig, ax = plt.subplots(layout='constrained')
@@ -74,24 +74,28 @@ def draw_bar(data, dataset, model, shot_num):
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax.set_ylabel('Accuracy (%)')
-    ax.set_title('Graph propmt performance on downstream task (Cora+GCN)')
+    ax.set_title('Downstream task ({}_{}+GCN+10 shot)'.format(dataset, pre_train_data))
     ax.set_xticks(x + width, species)
     ax.legend(loc='upper left', ncols=3)
     ax.set_ylim(0, 1)
 
     # plt.show()
-    save_path = "./figs/" + '{}_{}_{}.pdf'.format(dataset, model, shot_num)
-    plt.savefig(save_path, format='pdf', bbox_inches='tight')
+    save_path = "./figs/" + '{}_{}_{}_{}.png'.format(dataset, pre_train_data, model, shot_num)
+    plt.savefig(save_path, format='png', bbox_inches='tight', dpi=1200)
     plt.close()
     print('save fig done')
 
 if __name__ == "__main__":
-    path = "./Experiment_diff_dataset/ExcelResults/Node/10shot/Cora/GCN_total_results.txt"
+    dataset = 'Cora'
+    pre_train_data = 'Photo'
+    if dataset != pre_train_data:
+        path = "./Experiment_diff_dataset/ExcelResults/Node/10shot/{}_{}/GCN_total_results.txt".format(dataset, pre_train_data)
+    else:
+        path = "./Experiment/ExcelResults/Node/10shot/{}_{}/GCN_total_results.txt".format(dataset, pre_train_data)
     
     data = read_data(path)
-    ipdb.set_trace()
     print(data)
-    draw_bar(data, dataset='Cora', model='GCN', shot_num=10)
+    draw_bar(data, dataset=dataset, pre_train_data = pre_train_data, model='GCN', shot_num=10)
 
 
 
