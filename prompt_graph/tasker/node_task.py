@@ -239,6 +239,11 @@ class NodeTask(BaseTask):
                         train_lbls = train_lbls_[int(len(train_lbls_)/2):]
                         idx_test = idx_test_[int(len(idx_test_)/2):]
                         test_lbls = test_lbls_[int(len(test_lbls_)/2):]
+                  else:
+                        idx_train = idx_train_
+                        train_lbls = train_lbls_
+                        idx_test = idx_test_
+                        test_lbls = test_lbls_
 
                   # GPPT prompt initialtion
                   if self.prompt_type == 'GPPT':
@@ -299,17 +304,18 @@ class NodeTask(BaseTask):
                               loss = self.MultiGpromptTrain(pretrain_embs, train_lbls, idx_train)
 
                         # comment early stopping
-                        if loss < best:
-                              best = loss
-                              # best_t = epoch
-                              cnt_wait = 0
-                              # torch.save(model.state_dict(), args.save_name)
-                        else:
-                              cnt_wait += 1
-                              if cnt_wait == patience:
-                                    print('-' * 100)
-                                    print('Early stopping at '+str(epoch) +' eopch!')
-                                    break
+                        if self.prompt_type != 'None':
+                              if loss < best:
+                                    best = loss
+                                    # best_t = epoch
+                                    cnt_wait = 0
+                                    # torch.save(model.state_dict(), args.save_name)
+                              else:
+                                    cnt_wait += 1
+                                    if cnt_wait == patience:
+                                          print('-' * 100)
+                                          print('Early stopping at '+str(epoch) +' eopch!')
+                                          break
                         
                         print("Epoch {:03d} |  Time(s) {:.4f} | Loss {:.4f}  ".format(epoch, time.time() - t0, loss))
                   # train the attack model if flag == 'shadow'
