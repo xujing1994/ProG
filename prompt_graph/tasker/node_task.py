@@ -38,7 +38,8 @@ class NodeTask(BaseTask):
                   shot_path = './Experiment_diff_dataset/sample_data/Node/'+ self.dataset_name
             else:
                   shot_path = './Experiment/sample_data/Node/'+ self.dataset_name
-            for k in range(1, 11):
+            # for k in range(1, 11):
+            for k in range(100, 101):
                   k_shot_folder = os.path.join(shot_path, str(k)+'_shot')
                   os.makedirs(k_shot_folder, exist_ok=True)
                   
@@ -159,14 +160,14 @@ class NodeTask(BaseTask):
             self.gnn.eval()
             for epoch in range(1, answer_epoch + 1):
                   answer_loss = self.prompt.Tune(train_loader, self.gnn,  self.answering, self.criterion, self.answer_opi, self.device)
-                  print(("frozen gnn | frozen prompt | *tune answering function... {}/{} ,loss: {:.4f} ".format(epoch, answer_epoch, answer_loss)))
+                  # print(("frozen gnn | frozen prompt | *tune answering function... {}/{} ,loss: {:.4f} ".format(epoch, answer_epoch, answer_loss)))
 
             # tune prompt
             self.answering.eval()
             self.prompt.train()
             for epoch in range(1, prompt_epoch + 1):
                   pg_loss = self.prompt.Tune( train_loader,  self.gnn, self.answering, self.criterion, self.pg_opi, self.device)
-                  print(("frozen gnn | *tune prompt |frozen answering function... {}/{} ,loss: {:.4f} ".format(epoch, prompt_epoch, pg_loss)))
+                  # print(("frozen gnn | *tune prompt |frozen answering function... {}/{} ,loss: {:.4f} ".format(epoch, prompt_epoch, pg_loss)))
             
             # return pg_loss
             return answer_loss

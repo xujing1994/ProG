@@ -16,7 +16,8 @@ class BaseTask:
         
         self.pre_train_model_path = pre_train_model_path
         self.pre_train_type = self.return_pre_train_type(pre_train_model_path)
-        self.device = torch.device('cuda:' + str(device) if torch.cuda.is_available() else 'cpu')
+        # self.device = torch.device('cuda:' + str(device) if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.hid_dim = hid_dim
         self.num_layer = num_layer
         self.dataset_name = dataset_name

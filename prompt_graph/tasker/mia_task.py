@@ -138,7 +138,7 @@ class MIATask(BaseTask):
             else:
                   folder = "./Experiment/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
 
-            for i in range(1, 2): # specify the seed
+            for i in range(self.seed, self.seed+1): # specify the seed
                   self.initialize_gnn()
                   # self.initialize_optimizer()
                   idx_train = torch.load("{}/{}/train_idx.pt".format(folder, i)).type(torch.long).to(self.device)
