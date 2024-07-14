@@ -43,15 +43,15 @@ if __name__ == "__main__":
     pretrain_path = args.pre_train_model_path
     pretrain_type = os.path.split(pretrain_path)[1].split('.')[0]
     print("Dataset: {}, GNN: {}, Pretrain: {}, Prompt: {}, ShotNum: {}, Seed: {}".format(args.dataset_name, args.gnn_type, pretrain_type, args.prompt_type, args.shot_num, args.seed))
-    if args.dataset_name not in args.pre_train_model_path :
-         # use different dataset for prompt fine-tuning
-         args.use_different_dataset = True
-    else:
-        args.use_different_dataset = False
-        args.pre_train_data = args.dataset_name
+    # if args.dataset_name not in args.pre_train_model_path :
+    #      # use different dataset for prompt fine-tuning
+    #      args.use_different_dataset = True
+    # else:
+    #     args.use_different_dataset = False
+    #     args.pre_train_data = args.dataset_name
     if args.task == 'NodeTask':
         data, input_dim, output_dim = load4node(args.dataset_name, args.use_different_dataset)   
-        device = torch.device('cuda:' + str(args.device) if torch.cuda.is_available() else 'cpu')
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         data = data.to(device)
         if args.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
             graphs_list = load_induced_graph(args.dataset_name, data, device, args.use_different_dataset)  # the debugging on Gprompt method is still in process
@@ -92,7 +92,7 @@ if __name__ == "__main__":
                         dataset_name = args.dataset_name, num_layer = args.num_layer, prompt=prompt_shadow,
                         gnn_type = args.gnn_type, hid_dim = args.hid_dim, prompt_type = args.prompt_type,
                         epochs = 100, shot_num = args.shot_num, device=args.device, lr = args.lr, wd = args.decay,
-                        batch_size = args.batch_size, data = data, input_dim = input_dim, output_dim = output_dim, graphs_list = graphs_list)
+                        batch_size = args.batch_size, seed=args.seed, data = data, input_dim = input_dim, output_dim = output_dim, graphs_list = graphs_list, use_different_dataset=args.use_different_dataset)
     attack_model, asr = attack_tasker.run()
     # ipdb.set_trace()
 
