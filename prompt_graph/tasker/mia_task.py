@@ -95,7 +95,7 @@ class MIATask(BaseTask):
                   train_accuracy = train_accuracy / count
                   train_loss = running_loss / count
                   print("Epochs: {}, train_acc: {}, train_loss: {}".format(e, train_accuracy, train_loss))
-            # return train_accuracy, train_loss
+            return train_accuracy, train_loss
       def attack_eval(self, testloader):
             criterion = nn.CrossEntropyLoss()  # nn.NLLLoss() # cross entropy loss
 
@@ -224,7 +224,7 @@ class MIATask(BaseTask):
                   attack_test_data_loader = torch.utils.data.DataLoader(attack_test_data, batch_size=32, shuffle=False)
 
                   optimizer = torch.optim.Adam(self.attack_model.parameters(), lr=0.01)  # 0.01 #0.00001
-                  self.attack_train(attack_train_data_loader, optimizer, epochs=100)
+                  train_acc, train_loss = self.attack_train(attack_train_data_loader, optimizer, epochs=100)
                   test_accuracy = self.attack_eval(attack_test_data_loader)
 
             return  self.attack_model, test_accuracy

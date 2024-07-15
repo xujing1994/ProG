@@ -76,31 +76,35 @@ def draw_bar(data, dataset, pre_train_data, model, shot_num):
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax.set_ylabel('Accuracy (%)')
-    ax.set_title('Downstream task ({}_{}+GCN+10 shot)'.format(pre_train_data, dataset))
+    ax.set_title('Downstream task ({}_{}+GCN+{}shot)'.format(pre_train_data, dataset, shot_num))
     ax.set_xticks(x + width, species)
     ax.legend(loc='upper left', ncols=3)
     ax.set_ylim(0, 1)
 
     # plt.show()
-    save_path = "./figs/" + '{}_{}_{}_{}.png'.format(pre_train_data, dataset, model, shot_num)
+    save_path = "./figs/" + '{}_{}_{}_{}_new.png'.format(pre_train_data, dataset, model, shot_num)
     plt.savefig(save_path, format='png', bbox_inches='tight', dpi=1200)
     plt.close()
     print('save fig done')
 
 if __name__ == "__main__":
     dataset = 'Cora'
-    pre_train_data = 'Photo'
+    pre_train_data = 'Cora'
     use_different_dataset = True
+    shot_num = 100
     if use_different_dataset:
-        path = "./Experiment_diff_dataset/ExcelResults/Node/10shot/{}_{}/GCN_total_results.txt".format(dataset, pre_train_data)
+        path = "./Experiment_diff_dataset/ExcelResults/Node/{}shot/{}_{}/GCN_total_results.txt".format(shot_num, dataset, pre_train_data)
     else:
-        path = "./Experiment/ExcelResults/Node/10shot/{}_{}/GCN_total_results.txt".format(dataset, pre_train_data)
+        path = "./Experiment/ExcelResults/Node/{}shot/{}_{}/GCN_total_results.txt".format(shot_num, dataset, pre_train_data)
     
     data = read_data(path)
     print(data)
-    draw_bar(data, dataset=dataset, pre_train_data = pre_train_data, model='GCN', shot_num=10)
+    draw_bar(data, dataset=dataset, pre_train_data = pre_train_data, model='GCN', shot_num=shot_num)
+    # print the maximum result for each prompt method among six pre-training methods
 
-
+    for i in range(len(Prompts)):
+        print('{}: {:.4}%'.format(Prompts[i], max(data[:, i, 0]*100)))
+        print(['{:.4}%'.format(k) for k in data[:, i, -1]*100])
 
 def draw_figure(data_avg_adv, data_std_adv, data_avg_ben, data_std_ben, dataset, recover_from):
     filename = '{}_{}.pdf'.format(dataset, model)
