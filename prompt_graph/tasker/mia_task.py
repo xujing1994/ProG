@@ -134,9 +134,9 @@ class MIATask(BaseTask):
                   self.prompt_epoch = 50
                   self.epochs = int(self.epochs/self.answer_epoch)
             if self.use_different_dataset:
-                  folder = "./Experiment_diff_dataset/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
+                  folder = "./Experiment_diff_dataset/sample_data/Node/{}/{}_shot".format(self.dataset_name, int(self.shot_num*2))
             else:
-                  folder = "./Experiment/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
+                  folder = "./Experiment/sample_data/Node/{}/{}_shot".format(self.dataset_name, int(self.shot_num*2))
 
             for i in range(self.seed, self.seed+1): # specify the seed
                   self.initialize_gnn()
@@ -156,7 +156,7 @@ class MIATask(BaseTask):
 
                   if len(idx_train) < len(idx_test):
                         idx_test = idx_test[:len(idx_train)]
-                        test_lbls = test_lbls[:len(test_lbls)]
+                        test_lbls = test_lbls[:len(idx_train)]
                   print("number of train data: {}, test data: {}".format(len(idx_train), len(idx_test)))
                   
                   if self.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
@@ -197,7 +197,15 @@ class MIATask(BaseTask):
                   elif self.prompt_type in ['GPF', 'GPF-plus']:
                         # ipdb.set_trace()
                         _, _, _, _, outs_train = GPFEva(train_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                         
-                        _, _, _, _, outs_test = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                         
+                        _, _, _, _, outs_test = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)  
+                        #print(torch.max(outs_train, dim=1))
+                        # train_correct_class = [train_dataset[i].y for i in range(len(train_dataset))]
+                        # train_correct_class_prob = [outs_train[i][train_dataset[i].y].item() for i in range(len(outs_train))]
+                  
+                        # test_correct_class = [test_dataset[i].y for i in range(len(test_dataset))]
+                        # test_correct_class_prob = [outs_test[i][test_dataset[i].y].item() for i in range(len(outs_test))]
+                        # print(torch.max(outs_test, dim=1))     
+                                                                         
                   elif self.prompt_type =='Gprompt':
                         _, _, _, _, outs_train = GpromptEva(train_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
                         _, _, _, _, outs_test = GpromptEva(test_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
@@ -206,6 +214,8 @@ class MIATask(BaseTask):
                         test_acc, f1, roc, prc = MultiGpromptEva(test_embs, test_lbls, idx_test, prompt_feature, self.Preprompt, self.DownPrompt, self.sp_adj, self.output_dim, self.device)  
                   
                   # train attack model
+                  # generate attack feature
+                  
                   pos_labels = torch.ones(outs_train.shape[0])
                   neg_labels = torch.zeros(outs_test.shape[0])
                   outs_data = torch.cat((outs_train, outs_test), dim=0)
@@ -223,8 +233,8 @@ class MIATask(BaseTask):
                   attack_train_data_loader = torch.utils.data.DataLoader(attack_train_data, batch_size=32, shuffle=True)
                   attack_test_data_loader = torch.utils.data.DataLoader(attack_test_data, batch_size=32, shuffle=False)
 
-                  optimizer = torch.optim.Adam(self.attack_model.parameters(), lr=0.01)  # 0.01 #0.00001
-                  self.attack_train(attack_train_data_loader, optimizer, epochs=100)
+                  optimizer = torch.optim.Adam(self.attack_model.parameters(), lr=0.001)  # 0.01 #0.00001
+                  self.attack_train(attack_train_data_loader, optimizer, epochs=300)
                   test_accuracy = self.attack_eval(attack_test_data_loader)
 
             return  self.attack_model, test_accuracy

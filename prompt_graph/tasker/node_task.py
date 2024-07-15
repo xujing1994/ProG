@@ -39,7 +39,7 @@ class NodeTask(BaseTask):
             else:
                   shot_path = './Experiment/sample_data/Node/'+ self.dataset_name
             # for k in range(1, 11):
-            for k in range(100, 101):
+            for k in range(200, 201):
                   k_shot_folder = os.path.join(shot_path, str(k)+'_shot')
                   os.makedirs(k_shot_folder, exist_ok=True)
                   
@@ -214,9 +214,9 @@ class NodeTask(BaseTask):
                   self.prompt_epoch = 50
                   self.epochs = int(self.epochs/10)
             if self.use_different_dataset:
-                  folder = "./Experiment_diff_dataset/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
+                  folder = "./Experiment_diff_dataset/sample_data/Node/{}/{}_shot".format(self.dataset_name, int(self.shot_num*2))
             else:
-                  folder = "./Experiment/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
+                  folder = "./Experiment/sample_data/Node/{}/{}_shot".format(self.dataset_name, int(self.shot_num*2))
             for i in range(self.seed, self.seed+1): # specify the seed
                   self.initialize_gnn()
                   self.initialize_prompt()

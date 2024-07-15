@@ -1,15 +1,17 @@
 import torch
 from prompt_graph.model import GAT, GCN, GCov, GIN, GraphSAGE, GraphTransformer
 from torch.optim import Adam
-from prompt_graph.data import load4node, load4graph
+from prompt_graph.data import load4node, load4graph, node_sample_and_save
 import torchmetrics
-
+import os
+import time
+import ipdb
 class Supervised_Train(torch.nn.Module):
-    def __init__(self, graph_list, input_dim, gnn_type='TransformerConv', dataset_name = 'Cora', hid_dim = 128, gln = 2, num_epoch = 1000, device : int = 5, seed: int=0):
+    def __init__(self, data, input_dim, gnn_type='TransformerConv', dataset_name = 'Cora', hid_dim = 128, gln = 2, num_epoch = 1000, device : int = 5, seed: int=0, out_dim=None, shot_num=None):
         super().__init__()
         # self.device = torch.device('cuda:' + str(device) if torch.cuda.is_available() else 'cpu')
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.graph_list = graph_list
+        self.data = data.to(self.device)
         self.input_dim = input_dim
         self.dataset_name = dataset_name
         self.gnn_type = gnn_type
@@ -19,28 +21,48 @@ class Supervised_Train(torch.nn.Module):
         self.learning_rate = 0.001
         self.weight_decay = 0.00005
         self.seed = seed
+        self.out_dim = out_dim
+        self.shot_num = shot_num
+        self.create_few_data_folder()
+        self.criterion = torch.nn.CrossEntropyLoss()
+
+    def create_few_data_folder(self):
+        # 创建文件夹并保存数据
+
+        shot_path = './Experiment/sample_data/Node/'+ self.dataset_name
+        # for k in range(1, 11):
+        for k in range(100, 101):
+            k_shot_folder = os.path.join(shot_path, str(k)+'_shot')
+            os.makedirs(k_shot_folder, exist_ok=True)
+            
+            for i in range(0, 6):
+                folder = os.path.join(k_shot_folder, str(i))
+                if not os.path.exists(folder):
+                    os.makedirs(folder)
+                    node_sample_and_save(self.data, k, folder, self.out_dim)
+                    print(str(k) + ' shot ' + str(i) + ' th is saved!!')
 
     def initialize_gnn(self):
         if self.gnn_type == 'GAT':
-                self.gnn = GAT(input_dim = input_dim, hid_dim = hid_dim, out_dim = out_dim, num_layer = self.num_layer)
+                self.gnn = GAT(input_dim = self.input_dim, hid_dim = self.hid_dim, out_dim = self.out_dim, num_layer = self.num_layer)
         elif self.gnn_type == 'GCN':
-                self.gnn = GCN(input_dim = input_dim, hid_dim = hid_dim, num_layer = self.num_layer) # output hid_dim feature
+                self.gnn = GCN(input_dim = self.input_dim, hid_dim = self.hid_dim, out_dim=self.out_dim, num_layer = self.num_layer) # output hid_dim feature
         elif self.gnn_type == 'GraphSAGE':
-                self.gnn = GraphSAGE(input_dim = input_dim, hid_dim = hid_dim, num_layer = self.num_layer)
+                self.gnn = GraphSAGE(input_dim = self.input_dim, hid_dim = self.hid_dim, out_dim=self.out_dim, num_layer = self.num_layer)
         elif self.gnn_type == 'GIN':
-                self.gnn = GIN(input_dim = input_dim, hid_dim = hid_dim, num_layer = self.num_layer)
+                self.gnn = GIN(input_dim = self.input_dim, hid_dim = self.hid_dim, out_dim=self.out_dim, num_layer = self.num_layer)
         elif self.gnn_type == 'GCov':
-                self.gnn = GCov(input_dim = input_dim, hid_dim = hid_dim, num_layer = self.num_layer)
+                self.gnn = GCov(input_dim = self.input_dim, hid_dim = self.hid_dim, out_dim=self.out_dim, num_layer = self.num_layer)
         elif self.gnn_type == 'GraphTransformer':
-                self.gnn = GraphTransformer(input_dim = input_dim, hid_dim = hid_dim, num_layer = self.num_layer)
+                self.gnn = GraphTransformer(input_dim = self.input_dim, hid_dim = self.hid_dim, out_dim=self.out_dim, num_layer = self.num_layer)
         else:
                 raise ValueError(f"Unsupported GNN type: {self.gnn_type}")
         print(self.gnn)
         self.gnn.to(self.device)
         self.optimizer = Adam(self.gnn.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
 
-    def load_data(self):
-        self.data, self.input_dim, self.out_dim = load4node(self.dataset_name)
+    # def load_data(self):
+    #     self.data, self.input_dim, self.out_dim = load4node(self.dataset_name)
     
     def train(self, train_idx):
         self.gnn.train()
@@ -82,12 +104,12 @@ class Supervised_Train(torch.nn.Module):
         self.initialize_gnn()
 
         folder = "./Experiment/sample_data/Node/{}/{}_shot".format(self.dataset_name, self.shot_num)
-        idx_train = torch.load("{}/{}/train_idx.pt".format(folder, i)).type(torch.long).to(self.device)
+        idx_train = torch.load("{}/{}/train_idx.pt".format(folder, self.seed)).type(torch.long).to(self.device)
         print('idx_train',idx_train)
-        train_lbls = torch.load("{}/{}/train_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
-        print("true",i,train_lbls)
-        idx_test = torch.load("{}/{}/test_idx.pt".format(folder, i)).type(torch.long).to(self.device)
-        test_lbls = torch.load("{}/{}/test_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
+        train_lbls = torch.load("{}/{}/train_labels.pt".format(folder, self.seed)).type(torch.long).squeeze().to(self.device)
+        print("true",self.seed,train_lbls)
+        idx_test = torch.load("{}/{}/test_idx.pt".format(folder, self.seed)).type(torch.long).to(self.device)
+        test_lbls = torch.load("{}/{}/test_labels.pt".format(folder, self.seed)).type(torch.long).squeeze().to(self.device)
 
         train_loss_min = 1000000
         patience = 20
