@@ -7,6 +7,9 @@ import statistics
 import copy
 import matplotlib
 import random
+import pickle
+import torch
+import ipdb
 
 # matplotlib.rc('xtick', labelsize=25) 
 # matplotlib.rc('ytick', labelsize=25) 
@@ -24,87 +27,90 @@ Pretrains = ['GraphCL', 'SimGRACE', 'Edgepred_GPPT', 'Edgepred_Gprompt', 'DGI', 
 
 Prompts = ['All-in-one', 'GPF', 'GPF-plus', 'GPPT']
 
-Seeds = range(5)
+Seeds = range(100)
 
 N_Ss = range(1, 11)
 
-def read_data(path):
-    d = np.zeros(((len(Pretrains), len(Prompts), 7))) # [len(Pretrains), len(Prompts), 7]
+def read_data(path, shot_num):
+    d = np.zeros(((len(Seeds), 70, 8))) # [len(Pretrains), len(Prompts), 7]
+    count = np.zeros(len(Seeds))
     with open(path, 'r') as f:
         for line in f.readlines()[:]:
-            if line.split(' ')[0] == 'pre_train+prompt':
-                continue
-            line = line.replace('+0.0', '')
+            # if line.split(' ')[0] == 'pre_train+prompt':
+            #     continue
+            # line = line.replace('+0.0', '')
             line = line.replace('\n', '')
             data = line.split(' ')
-            pretrain_type = data[0].split('+')[0]
-            prompt_type = data[0].split('+')[1]
-
-            for i, pre in enumerate(Pretrains):
-                for j, pt in enumerate(Prompts):
-                    if pretrain_type == pre and prompt_type == pt:
-                        #ipdb.set_trace()
-                        d[i, j] = data[8:]
-    # check whether all results are ready:
-        for i in range(len(Pretrains)):
-            if d[i, 0, 0] == 0:
-                print(Pretrains[i], path)
+            # pretrain_type = data[0].split('+')[0]
+            # prompt_type = data[0].split('+')[1]
+            seed = int(data[0])
+            d[seed, int(count[seed])] = data[1:]
+            count[seed] += 1
+    # # check whether all results are ready:
+    #     for i in range(len(Pretrains)):
+    #         if d[i, 0, 0] == 0:
+    #             print(Pretrains[i], path)
     return d
 
-def draw_bar(data, dataset, pre_train_data, model, shot_num):
-    species = ('GraphCL', 'SimGRACE', 'Edgepred_ \n GPPT', 'Edgepred_ \n Gprompt', 'DGI', 'GraphMAE')
-    # penguin_means = {
-    #     'All-in-one': data[:, 0, 0],
-    #     'GPF': data[:, 1, 0],
-    #     'Flipper Length': (189.95, 195.82, 217.19),
-    # }
+def draw_bar(outs_train_100, outs_test_100, pre_train_type, prompt_type, dataset, pre_train_data, model, shot_num):
+    n_bins = 10
+    labels_train_100 = outs_train_100[:, :, -1].astype(np.int64)
+    labels_test_100 = outs_test_100[:, :, -1].astype(np.int64)
+    prob_train_100 = outs_train_100[:, :, :-1]
+    prob_test_100 = outs_test_100[:, :, :-1]
+    # prob_train = outs_train[torch.arange(outs_train.size(0)), labels_train].numpy()
+    # prob_test = outs_test[torch.arange(outs_test.size(0)), labels_test].numpy()
+    prob_train = np.zeros((len(Seeds), 70))
+    prob_test = np.zeros((len(Seeds), 70))
+    for i in range(len(Seeds)):
+        prob_train[i] = prob_train_100[i][np.arange(prob_train_100.shape[1]), labels_train_100[i]]
+        prob_test[i] = prob_test_100[i][np.arange(prob_test_100.shape[1]), labels_test_100[i]]
 
-    x = np.arange(len(species))  # the label locations
-    width = 0.16  # the width of the bars
-    multiplier = 0
+    x = [prob_train.flatten(), prob_test.flatten()]
 
     fig, ax = plt.subplots(layout='constrained')
-
-    # for attribute, measurement in zip(Prompts, data[:, :, 0]):
-    for i, pt in enumerate(Prompts):
-        attribute = pt
-        measurement = data[:, i, 0]
-        offset = width * multiplier
-        rects = ax.bar(x + offset, measurement, width, label=attribute)
-        ax.bar_label(rects, padding=3)
-        multiplier += 1
+    colors = ['blue', 'red']
+    labels = ['Member', 'Non member']
+    ax.hist(x, n_bins, density=True, histtype='bar', color=colors, label=labels)
+    # plt.show()
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
-    ax.set_ylabel('Accuracy (%)')
-    ax.set_title('Downstream task ({}_{}+GCN+{}shot)'.format(pre_train_data, dataset, shot_num))
-    ax.set_xticks(x + width, species)
-    ax.legend(loc='upper left', ncols=3)
-    ax.set_ylim(0, 1)
+    ax.set_ylabel('Density')
+    ax.set_xlabel('Target prediction probability')
+    ax.set_title('Probability distribution ({}_{}_{}_{}+{}+{}shot_100)'.format(pre_train_type, prompt_type, pre_train_data, dataset, model, shot_num))
+    ax.legend(loc='upper left')
 
     # plt.show()
-    save_path = "./figs/" + '{}_{}_{}_{}_new.png'.format(pre_train_data, dataset, model, shot_num)
+    save_path = "./figs/outs/" + '{}_{}_{}_{}_{}_{}_outs_100.png'.format(pre_train_type, prompt_type, pre_train_data, dataset, model, shot_num)
     plt.savefig(save_path, format='png', bbox_inches='tight', dpi=1200)
     plt.close()
     print('save fig done')
 
 if __name__ == "__main__":
-    dataset = 'CiteSeer'
+    dataset = 'Cora'
     pre_train_data = 'PubMed'
     use_different_dataset = True
-    shot_num = 100
+    shot_num = 10
+    pre_train_type = ['GraphCL', 'SimGRACE', 'GraphMAE', 'DGI', 'Edgepred_GPPT', 'Edgepred_Gprompt']
+    prompt_type = 'All-in-one'
+    model='GCN'
     if use_different_dataset:
-        path = "./Experiment_diff_dataset/ExcelResults/Node/{}shot/{}_{}/GCN_total_results.txt".format(shot_num, dataset, pre_train_data)
+        path = "./Experiment_diff_dataset/outs/Node/{}shot/{}_{}".format(shot_num, dataset, pre_train_data)
     else:
-        path = "./Experiment/ExcelResults/Node/{}shot/{}_{}/GCN_total_results.txt".format(shot_num, dataset, pre_train_data)
-    
-    data = read_data(path)
-    print(data)
-    draw_bar(data, dataset=dataset, pre_train_data = pre_train_data, model='GCN', shot_num=shot_num)
-    # print the maximum result for each prompt method among six pre-training methods
+        path = "./Experiment/outs/Node/{}shot/{}_{}".format(shot_num, dataset, pre_train_data)
+    for ptt in pre_train_type[1:2]:
+        outs_train_path = os.path.join(path, "train/{}_{}_{}.txt".format(ptt, prompt_type, model))
+        outs_train_100 = read_data(outs_train_path, shot_num)
 
-    for i in range(len(Prompts)):
-        print('{}: {:.4}%'.format(Prompts[i], max(data[:, i, 0]*100)))
-        print(['{:.4}%'.format(k) for k in data[:, i, -1]*100])
+        outs_test_path = os.path.join(path, "test/{}_{}_{}.txt".format(ptt, prompt_type, model))
+        outs_test_100 = read_data(outs_test_path, shot_num)
+
+    # outs_train = torch.load(os.path.join(path, "train/{}_{}_{}.txt".format(pre_train_type, prompt_type, model)))
+    # outs_test = torch.load(os.path.join(path, "{}_{}_{}_outs_test.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
+    # labels_train = torch.load(os.path.join(path, "{}_{}_{}_labels_train.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
+    # labels_test = torch.load(os.path.join(path, "{}_{}_{}_labels_test.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
+        draw_bar(outs_train_100, outs_test_100, ptt, prompt_type, dataset=dataset, pre_train_data = pre_train_data, model=model, shot_num=shot_num)
+    # print the maximum result for each prompt method among six pre-training methods
 
 def draw_figure(data_avg_adv, data_std_adv, data_avg_ben, data_std_ben, dataset, recover_from):
     filename = '{}_{}.pdf'.format(dataset, model)
