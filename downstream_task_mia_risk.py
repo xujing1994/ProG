@@ -95,51 +95,18 @@ if __name__ == "__main__":
 
     # 1. train target prompt and shadow prompt
     if args.task != 'FineTuneNodeTask':
-        _, test_acc, std_test_acc, f1, std_f1, roc, std_roc, _, _, prompt, answering= tasker_target.run(flag='target')
-        _, test_acc_shadow, std_test_acc_shadow, f1_shadow, std_f1_shadow, roc_shadow, std_roc_shadow, _, _, prompt_shadow, answering_shadow= tasker_shadow.run(flag='shadow')
+        _, test_acc, std_test_acc, f1, std_f1, roc, std_roc, _, _, prompt, answering= tasker_target.run(flag='target', mia_risk=True)
+        # _, test_acc_shadow, std_test_acc_shadow, f1_shadow, std_f1_shadow, roc_shadow, std_roc_shadow, _, _, prompt_shadow, answering_shadow= tasker_shadow.run(flag='shadow')
     else:
-        _, test_acc, std_test_acc, f1, std_f1, roc, std_roc, _, _, prompt, answering= tasker.run(flag='None')
+        _, test_acc, std_test_acc, f1, std_f1, roc, std_roc, _, _, prompt, answering= tasker.run(flag='None', mia_risk=False)
     # 2. train attack model using the shadow prompt and shadow training/testing datasets, and then evaluate the attack performance
     # 2.1 train shadow prompt and the attack model
-    # 2.2 train target prompt and evaluate the attack performance
-    if args.task != 'FineTuneNodeTask':
-        attack_tasker = MIATask(pre_train_model_path = args.pre_train_model_path, 
-                            dataset_name = args.dataset_name, num_layer = args.num_layer, prompt=prompt_shadow,
-                            gnn_type = args.gnn_type, hid_dim = args.hid_dim, prompt_type = args.prompt_type,
-                            epochs = 100, shot_num = args.shot_num, device=args.device, lr = args.lr, wd = args.decay,
-                            batch_size = args.batch_size, seed=args.seed, data = data, input_dim = input_dim, output_dim = output_dim, graphs_list = graphs_list, use_different_dataset=args.use_different_dataset)
-        attack_model, asr = attack_tasker.run()
-
-    # ipdb.set_trace()
+    # 2.2 train target prompt and evaluate the attack performanc
 
     # print("Final Accuracy {:.4f}±{:.4f}(std)".format(test_acc, std_test_acc)) 
     # print("Final F1 {:.4f}±{:.4f}(std)".format(f1,std_f1)) 
     # print("Final AUROC {:.4f}±{:.4f}(std)".format(roc, std_roc)) 
-    # save results to txt file
-    file_name = args.gnn_type +"_total_results.txt"
-    if args.use_different_dataset:
-        folder = "./Experiment_diff_dataset/ExcelResults"
-    else:
-        folder = "./Experiment/ExcelResults"
-    
-    if args.task == 'NodeTask':
-        file_path = os.path.join('{}/Node/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'_'+args.pre_train_data + '/', file_name)
-    elif args.task == 'FineTuneNodeTask':
-        file_path = os.path.join('{}/FineTuneNode/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'_'+args.pre_train_data + '/', file_name)
-    else:
-        file_path = os.path.join('{}/Graph/'.format(folder)+str(args.shot_num)+'shot/'+ args.dataset_name +'_'+args.pre_train_data + '/', file_name)
-    folder_path = os.path.split(file_path)[0]
-    if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
 
-    if args.task == 'FineTuneNodeTask':
-        test_acc_shadow, std_test_acc_shadow, f1_shadow, std_f1_shadow, roc_shadow, std_roc_shadow, asr = None, None, None, None, None, None, None
-
-    with open(file_path, 'a') as f:
-        print(file_path)
-        #f.write("pre_train+prompt learning_rate weight_decay batch_size Final_Accuracy Final_F1 Final_AUROC")
-        f.write("{}+{} {} {} {} {} {} {} {} {}+{} {}+{} {}+{} {}+{} {}+{} {}+{} {}".format(pre_train_type, args.prompt_type, args.lr, args.decay, args.batch_size, args.epochs, args.shot_num, args.hid_dim, args.seed, test_acc, std_test_acc, f1, std_f1, roc, std_roc, test_acc_shadow, std_test_acc_shadow, f1_shadow, std_f1_shadow, roc_shadow, std_roc_shadow, asr))
-        f.write("\n")
 
 
     

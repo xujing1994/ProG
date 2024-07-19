@@ -39,6 +39,6 @@ def get_args():
     parser.add_argument('--pnum', type=int, default = 5, help='The number of independent basis for GPF-plus')
     parser.add_argument('--use_different_dataset', action="store_true", help="wheterh to use different in the pre-train and prompt fine-tune phases")
     parser.add_argument('--pre_train_data', type=str, default='Cora',help='Choose the dataset of pretrain task')
-
+    parser.add_argument('--pre_train_type', type=str, default='SimGRACE',help='Choose the pretrain strategy')
     args = parser.parse_args()
     return args

@@ -15,13 +15,16 @@ def AllInOneEva(loader, prompt, gnn, answering, num_class, device):
     auroc.reset()
     auprc.reset()
     pres = []
-
+    criterion = torch.nn.CrossEntropyLoss()
+    labels = []
     with torch.no_grad():
         for batch_id, batch in enumerate(loader):
+            labels.append(batch.y)
             batch = batch.to(device)
             prompted_graph = prompt(batch)
             graph_emb = gnn(prompted_graph.x, prompted_graph.edge_index, prompted_graph.batch)
             pre = answering(graph_emb)
+            loss = criterion(pre, batch.y)
 
             pred = pre.argmax(dim=1)
 
@@ -38,7 +41,7 @@ def AllInOneEva(loader, prompt, gnn, answering, num_class, device):
     prc = auprc.compute()
     pres_ = torch.cat(pres, dim=0)
 
-    return acc.item(), ma_f1.item(), roc.item(), prc.item(), pres_
+    return acc.item(), ma_f1.item(), roc.item(), prc.item(), pres_, loss.item(), torch.cat(labels, dim=0)
 
 
 def AllInOneEvaWithoutAnswer(loader, prompt, gnn, num_class, device):
