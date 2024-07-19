@@ -6,6 +6,7 @@ from deprecated.sphinx import deprecated
 from sklearn.cluster import KMeans
 from torch_geometric.nn.inits import glorot
 import ipdb
+import torchmetrics
 
 class LightPrompt(torch.nn.Module):
     def __init__(self, token_dim, token_num_per_group, group_num=1, inner_prune=None):
@@ -99,8 +100,10 @@ class HeavyPrompt(LightPrompt):
         return graphp_batch
     
 
-    def Tune(self, train_loader, gnn, answering, lossfn, opi, device):
+    def Tune(self, train_loader, gnn, answering, lossfn, opi, device, out_dim):
         running_loss = 0.
+        accuracy = torchmetrics.classification.Accuracy(task="multiclass", num_classes=out_dim).to(device)
+        train_acc = 0.0
         for batch_id, train_batch in enumerate(train_loader): 
             opi.zero_grad() 
             # print(train_batch)
@@ -109,14 +112,18 @@ class HeavyPrompt(LightPrompt):
             # print(prompted_graph)
             graph_emb = gnn(prompted_graph.x, prompted_graph.edge_index, prompted_graph.batch) # Here, use SVD to unify input features from all domains as 100 dimensions
             pre = answering(graph_emb)
+            pred = pre.argmax(dim=1)
+            acc = accuracy(pred, train_batch.y)    
+            train_acc += acc.item()
+
             train_loss = lossfn(pre, train_batch.y)
             train_loss.backward()
             opi.step()
             running_loss += train_loss.item()
        
-            print(' batch {}/{} | loss: {:.8f}'.format( batch_id, len(train_loader), train_loss))
+            # print(' batch {}/{} | loss: {:.8f}'.format( batch_id, len(train_loader), train_loss))
 
-        return running_loss / len(train_loader)
+        return running_loss / len(train_loader), train_acc / len(train_loader)
     
     def TuneWithoutAnswering(self, train_loader, gnn, answering, lossfn, opi, device):
         total_loss = 0.0 

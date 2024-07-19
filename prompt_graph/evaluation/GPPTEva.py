@@ -13,16 +13,16 @@ def GPPTEva(data, idx_test, gnn, prompt, num_class, device):
     macro_f1.reset()
     auroc.reset()
     auprc.reset()
-
+    criterion = torch.nn.CrossEntropyLoss()
     node_embedding = gnn(data.x, data.edge_index)
     out = prompt(node_embedding, data.edge_index)
-    pred = out.argmax(dim=1)  
+    loss = criterion(out[idx_test], data.y[idx_test])
     
     acc = accuracy(pred[idx_test], data.y[idx_test])
     f1 = macro_f1(pred[idx_test], data.y[idx_test])
     roc = auroc(out[idx_test], data.y[idx_test]) 
     prc = auprc(out[idx_test], data.y[idx_test]) 
-    return acc.item(), f1.item(), roc.item(),prc.item(), out[idx_test]
+    return acc.item(), f1.item(), roc.item(),prc.item(), out[idx_test].item(), loss.item(), data.y[idx_test].item()
 
 def GPPTGraphEva(loader, gnn, prompt, num_class, device):
     # batch must be 1

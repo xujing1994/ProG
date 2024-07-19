@@ -17,15 +17,16 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import StandardScaler
 import numpy as np
 
-def node_sample_and_save(data, k, folder, num_classes):
+def node_sample_and_save(data, k, folder, num_classes, seed):
     # 获取标签
+    torch.manual_seed(seed)
     labels = data.y.to('cpu')
     
-    # 随机选择90%的数据作为测试集 --> change it to 70%
-    num_test = int(0.7 * data.num_nodes)
+    # 随机选择90%的数据作为测试集 --> change it to 50%
+    num_test = int(0.5 * data.num_nodes)
     print(num_test)
-    if num_test < 1000:
-        num_test = int(0.7 * data.num_nodes)
+    # if num_test < 1000:
+    #     num_test = int(0.7 * data.num_nodes)
     all_idx = torch.randperm(data.num_nodes)
     test_idx = all_idx[:num_test]
     test_labels = labels[test_idx]
@@ -41,10 +42,11 @@ def node_sample_and_save(data, k, folder, num_classes):
     train_labels = labels[train_idx]
 
     # 保存文件
-    torch.save(train_idx, os.path.join(folder, 'train_idx.pt'))
-    torch.save(train_labels, os.path.join(folder, 'train_labels.pt'))
-    torch.save(test_idx, os.path.join(folder, 'test_idx.pt'))
-    torch.save(test_labels, os.path.join(folder, 'test_labels.pt'))
+    # torch.save(train_idx, os.path.join(folder, 'train_idx.pt'))
+    # torch.save(train_labels, os.path.join(folder, 'train_labels.pt'))
+    # torch.save(test_idx, os.path.join(folder, 'test_idx.pt'))
+    # torch.save(test_labels, os.path.join(folder, 'test_labels.pt'))
+    return train_idx, train_labels, test_idx, test_labels
 
 def graph_sample_and_save(dataset, k, folder, num_classes):
 
