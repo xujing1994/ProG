@@ -85,7 +85,7 @@ class BaseTask:
             if(self.task_type=='NodeTask'):
                 self.prompt = HeavyPrompt(token_dim=self.input_dim, token_num=10, cross_prune=0.1, inner_prune=0.3).to(self.device)
             elif(self.task_type=='GraphTask'):
-                self.prompt = HeavyPrompt(token_dim=self.input_dim, token_num=10, cross_prune=0.1, inner_prune=0.3).to(self.device)
+                self.prompt = HeavyPrompt(token_dim=self.input_dim, token_num=50, cross_prune=0.1, inner_prune=0.3).to(self.device)
         elif self.prompt_type == 'GPF':
             self.prompt = GPF(self.input_dim).to(self.device)
         elif self.prompt_type == 'GPF-plus':

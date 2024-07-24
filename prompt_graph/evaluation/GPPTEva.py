@@ -17,7 +17,7 @@ def GPPTEva(data, idx_test, gnn, prompt, num_class, device):
     node_embedding = gnn(data.x, data.edge_index)
     out = prompt(node_embedding, data.edge_index)
     loss = criterion(out[idx_test], data.y[idx_test])
-    
+    pred = out.argmax(dim=1)
     acc = accuracy(pred[idx_test], data.y[idx_test])
     f1 = macro_f1(pred[idx_test], data.y[idx_test])
     roc = auroc(out[idx_test], data.y[idx_test]) 

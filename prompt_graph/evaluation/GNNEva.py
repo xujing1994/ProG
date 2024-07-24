@@ -7,6 +7,7 @@ def GNNNodeEva(data, idx_test,  gnn, answering, num_class, device):
     macro_f1 = torchmetrics.classification.F1Score(task="multiclass", num_classes=num_class, average="macro").to(device)
     auroc = torchmetrics.classification.AUROC(task="multiclass", num_classes=num_class).to(device)
     auprc = torchmetrics.classification.AveragePrecision(task="multiclass", num_classes=num_class).to(device)
+    criterion = torch.nn.CrossEntropyLoss()
 
     accuracy.reset()
     macro_f1.reset()
@@ -15,13 +16,14 @@ def GNNNodeEva(data, idx_test,  gnn, answering, num_class, device):
 
     out = gnn(data.x, data.edge_index, batch=None)
     out = answering(out)
+    loss = criterion(out[idx_test], data.y[idx_test])
     pred = out.argmax(dim=1) 
 
     acc = accuracy(pred[idx_test], data.y[idx_test])
     f1 = macro_f1(pred[idx_test], data.y[idx_test])
     roc = auroc(out[idx_test], data.y[idx_test]) 
     prc = auprc(out[idx_test], data.y[idx_test]) 
-    return acc.item(), f1.item(), roc.item(), prc.item()
+    return acc.item(), f1.item(), roc.item(), prc.item(), loss.item()
 
 def GNNGraphEva(loader, gnn, answering, num_class, device):
     gnn.eval()

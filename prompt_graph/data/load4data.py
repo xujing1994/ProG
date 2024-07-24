@@ -48,8 +48,8 @@ def node_sample_and_save(data, k, folder, num_classes, seed):
     # torch.save(test_labels, os.path.join(folder, 'test_labels.pt'))
     return train_idx, train_labels, test_idx, test_labels
 
-def graph_sample_and_save(dataset, k, folder, num_classes):
-
+def graph_sample_and_save(dataset, k, folder, num_classes, seed):
+    torch.manual_seed(seed)
     # 计算测试集的数量（例如80%的图作为测试集）
     num_graphs = len(dataset)
     num_test = int(0.8 * num_graphs)
@@ -59,9 +59,9 @@ def graph_sample_and_save(dataset, k, folder, num_classes):
     # 随机选择测试集的图索引
     all_indices = torch.randperm(num_graphs)
     test_indices = all_indices[:num_test]
-    torch.save(test_indices, os.path.join(folder, 'test_idx.pt'))
+    # torch.save(test_indices, os.path.join(folder, 'test_idx.pt'))
     test_labels = labels[test_indices]
-    torch.save(test_labels, os.path.join(folder, 'test_labels.pt'))
+    # torch.save(test_labels, os.path.join(folder, 'test_labels.pt'))
 
     remaining_indices = all_indices[num_test:]
 
@@ -78,9 +78,10 @@ def graph_sample_and_save(dataset, k, folder, num_classes):
     train_indices = torch.tensor(train_indices)
     shuffled_indices = torch.randperm(train_indices.size(0))
     train_indices = train_indices[shuffled_indices]
-    torch.save(train_indices, os.path.join(folder, 'train_idx.pt'))
+    # torch.save(train_indices, os.path.join(folder, 'train_idx.pt'))
     train_labels = labels[train_indices]
-    torch.save(train_labels, os.path.join(folder, 'train_labels.pt'))
+    # torch.save(train_labels, os.path.join(folder, 'train_labels.pt'))
+    return train_indices, train_labels, test_indices, test_labels
 
 def node_degree_as_features(data_list):
     from torch_geometric.utils import degree
@@ -110,8 +111,6 @@ def load4graph(dataset_name, shot_num= 10, num_parts=None, pretrained=False):
         dataset = TUDataset(root='data/TUDataset', name=dataset_name)
         input_dim = dataset.num_features
         out_dim = dataset.num_classes
-
-        torch.manual_seed(12345)
         dataset = dataset.shuffle()
         graph_list = [data for data in dataset]
 
@@ -151,8 +150,6 @@ def load4graph(dataset_name, shot_num= 10, num_parts=None, pretrained=False):
         dataset = PygGraphPropPredDataset(name = dataset_name, root='./dataset')
         input_dim = dataset.num_features
         out_dim = dataset.num_classes
-
-        torch.manual_seed(12345)
         dataset = dataset.shuffle()
         graph_list = [data for data in dataset]
 

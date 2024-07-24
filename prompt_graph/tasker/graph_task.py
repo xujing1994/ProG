@@ -8,6 +8,7 @@ from prompt_graph.evaluation import GpromptEva, GNNGraphEva, GPFEva, AllInOneEva
 import time
 import os 
 import numpy as np
+import torchmetrics
 
 class GraphTask(BaseTask):
     def __init__(self, input_dim, output_dim, dataset, *args, **kwargs):    
@@ -17,13 +18,15 @@ class GraphTask(BaseTask):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.dataset = dataset
-        if self.shot_num > 0:
-            self.create_few_data_folder()
+        # if self.shot_num > 0:
+        #     self.create_few_data_folder()
         self.initialize_gnn()
         self.initialize_prompt()
         self.answering =  torch.nn.Sequential(torch.nn.Linear(self.hid_dim, self.output_dim),
                                             torch.nn.Softmax(dim=1)).to(self.device)
         self.initialize_optimizer()
+        if self.shot_num > 0:
+            self.train_indices, self.train_labels, self.test_indices, self.test_labels = graph_sample_and_save(self.dataset, int(self.shot_num*2), folder='None', num_classes=self.output_dim, seed=self.seed)
 
     def create_few_data_folder(self):
             # 创建文件夹并保存数据
@@ -87,32 +90,36 @@ class GraphTask(BaseTask):
         self.answering.train()
         self.prompt.eval()
         for epoch in range(1, answer_epoch + 1):
-            answer_loss = self.prompt.Tune(train_loader, self.gnn,  self.answering, self.criterion, self.answer_opi, self.device)
-            print(("frozen gnn | frozen prompt | *tune answering function... {}/{} ,loss: {:.4f} ".format(epoch, answer_epoch, answer_loss)))
+            answer_loss, answer_acc = self.prompt.Tune(train_loader, self.gnn,  self.answering, self.criterion, self.answer_opi, self.device, self.output_dim)
+            # print(("frozen gnn | frozen prompt | *tune answering function... {}/{} ,loss: {:.4f} ".format(epoch, answer_epoch, answer_loss)))
 
         # tune prompt
         self.answering.eval()
         self.prompt.train()
         for epoch in range(1, prompt_epoch + 1):
-            pg_loss = self.prompt.Tune( train_loader,  self.gnn, self.answering, self.criterion, self.pg_opi, self.device)
-            print(("frozen gnn | *tune prompt |frozen answering function... {}/{} ,loss: {:.4f} ".format(epoch, answer_epoch, pg_loss)))
+            pg_loss, pg_acc = self.prompt.Tune( train_loader,  self.gnn, self.answering, self.criterion, self.pg_opi, self.device, self.output_dim)
+            # print(("frozen gnn | *tune prompt |frozen answering function... {}/{} ,loss: {:.4f} ".format(epoch, answer_epoch, pg_loss)))
         
-        return pg_loss
+        return answer_loss, answer_acc
 
     def GPFTrain(self, train_loader):
+        accuracy = torchmetrics.classification.Accuracy(task="multiclass", num_classes=self.output_dim).to(self.device)
         self.prompt.train()
         total_loss = 0.0 
+        acc = 0.0
         for batch in train_loader:  
             self.optimizer.zero_grad() 
             batch = batch.to(self.device)
             batch.x = self.prompt.add(batch.x)
             out = self.gnn(batch.x, batch.edge_index, batch.batch, prompt = self.prompt, prompt_type = self.prompt_type)
             out = self.answering(out)
+            pred = out.argmax(dim=1)
+            acc += accuracy(pred, batch.y)
             loss = self.criterion(out, batch.y)  
             loss.backward()  
             self.optimizer.step()  
             total_loss += loss.item()  
-        return total_loss / len(train_loader)  
+        return total_loss / len(train_loader), acc / len(train_loader)
 
     def GpromptTrain(self, train_loader):
         self.prompt.train()
@@ -165,187 +172,221 @@ class GraphTask(BaseTask):
             self.prompt.update_StructureToken_weight(self.prompt.get_mid_h())
         return temp_loss.item()
 
-    def run(self):
+    def run(self, flag='None'):
         test_accs = []
         f1s = []
         rocs = []
         prcs = []
         batch_best_loss = []
+        if self.prompt_type == 'All-in-one':
+            # self.answer_epoch = 5 MUTAG Graph MAE / GraphCL
+            # self.prompt_epoch = 1
+            self.answer_epoch = 50
+            self.prompt_epoch = 50
+            self.epochs = int(self.epochs/10)
         if self.shot_num > 0:
-            for i in range(1, 6):
-                idx_train = torch.load("./Experiment/sample_data/Graph/{}/{}_shot/{}/train_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).to(self.device)
-                print('idx_train',idx_train)
-                train_lbls = torch.load("./Experiment/sample_data/Graph/{}/{}_shot/{}/train_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().to(self.device)
-                print("true",i,train_lbls)
+            # idx_train = torch.load("./Experiment/sample_data/Graph/{}/{}_shot/{}/train_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).to(self.device)
+            # print('idx_train',idx_train)
+            # train_lbls = torch.load("./Experiment/sample_data/Graph/{}/{}_shot/{}/train_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().to(self.device)
+            # print("true",i,train_lbls)
 
-                idx_test = torch.load("./Experiment/sample_data/Graph/{}/{}_shot/{}/test_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).to(self.device)
-                test_lbls = torch.load("./Experiment/sample_data/Graph/{}/{}_shot/{}/test_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().to(self.device)
-            
-                train_dataset = self.dataset[idx_train]
-                test_dataset = self.dataset[idx_test]
+            # idx_test = torch.load("./Experiment/sample_data/Graph/{}/{}_shot/{}/test_idx.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).to(self.device)
+            # test_lbls = torch.load("./Experiment/sample_data/Graph/{}/{}_shot/{}/test_labels.pt".format(self.dataset_name, self.shot_num, i)).type(torch.long).squeeze().to(self.device)
+            idx_train_ = self.train_indices
+            idx_test_ = self.test_indices
+            train_lbls_ = self.train_labels
+            test_lbls_ = self.test_labels
 
+            if flag == 'target':
+                idx_train = idx_train_[:int(len(idx_train_)/2)]
+                train_lbls = train_lbls_[:int(len(idx_train_)/2)]
+                idx_test = idx_test_[:int(len(idx_test_)/2)]
+                test_lbls = test_lbls_[:int(len(test_lbls_)/2)]
+            elif flag == 'shadow':
+                idx_train = idx_train_[int(len(idx_train_)/2):]
+                train_lbls = train_lbls_[int(len(train_lbls_)/2):]
+                idx_test = idx_test_[int(len(idx_test_)/2):]
+                test_lbls = test_lbls_[int(len(test_lbls_)/2):]
+            else:
+                print('Train: {}, Test: {}'.format(len(idx_train_), len(idx_test_)))
+                idx_train = idx_train_[:int(len(idx_train_)/2)]
+                train_lbls = train_lbls_[:int(len(idx_train_)/2)]
+                idx_test = idx_test_[:int(len(idx_test_)/2)]
+                test_lbls = test_lbls_[:int(len(test_lbls_)/2)]
+        
+            train_dataset = self.dataset[idx_train]
+            test_dataset = self.dataset[idx_test]
+
+            if self.dataset_name in ['COLLAB', 'IMDB-BINARY', 'REDDIT-BINARY', 'ogbg-ppa']:
+                from torch_geometric.data import Batch
+                train_dataset = [train_g for train_g in train_dataset]
+                test_dataset = [test_g for test_g in test_dataset]
+                self.node_degree_as_features(train_dataset)
+                self.node_degree_as_features(test_dataset)
+                if self.prompt_type == 'GPPT':
+                    processed_dataset = [g for g in self.dataset]
+                    self.node_degree_as_features(processed_dataset)
+                    processed_dataset = Batch.from_data_list([g for g in processed_dataset])
+                self.input_dim = train_dataset[0].x.size(1)
+
+            train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+            test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
+            print("prepare data is finished!")
+
+            patience = 20
+            best = 1e9
+            cnt_wait = 0
+        
+            if self.prompt_type == 'GPPT':
+                # initialize the GPPT hyperparametes via graph data
                 if self.dataset_name in ['COLLAB', 'IMDB-BINARY', 'REDDIT-BINARY', 'ogbg-ppa']:
-                    from torch_geometric.data import Batch
-                    train_dataset = [train_g for train_g in train_dataset]
-                    test_dataset = [test_g for test_g in test_dataset]
-                    self.node_degree_as_features(train_dataset)
-                    self.node_degree_as_features(test_dataset)
-                    if self.prompt_type == 'GPPT':
-                        processed_dataset = [g for g in self.dataset]
-                        self.node_degree_as_features(processed_dataset)
-                        processed_dataset = Batch.from_data_list([g for g in processed_dataset])
-                    self.input_dim = train_dataset[0].x.size(1)
-
-                train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
-                test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
-                print("prepare data is finished!")
-    
-                patience = 20
-                best = 1e9
-                cnt_wait = 0
-            
-                if self.prompt_type == 'All-in-one':
-                    # self.answer_epoch = 5 MUTAG Graph MAE / GraphCL
-                    # self.prompt_epoch = 1
-                    self.answer_epoch = 5
-                    self.prompt_epoch = 1
-                    self.epochs = int(self.epochs/self.answer_epoch)
-                elif self.prompt_type == 'GPPT':
-                    # initialize the GPPT hyperparametes via graph data
-                    if self.dataset_name in ['COLLAB', 'IMDB-BINARY', 'REDDIT-BINARY', 'ogbg-ppa']:
-                        # total_num_nodes = sum([data.num_nodes for data in train_dataset])
-                        # train_node_ids = torch.arange(0,total_num_nodes).squeeze().to(self.device)
-                        # self.gppt_loader = DataLoader(processed_dataset, batch_size=1, shuffle=True)
-                        # for i, batch in enumerate(self.gppt_loader):
-                        #     if(i==0):
-                        #         node_for_graph_labels = torch.full((1,batch.x.shape[0]), batch.y.item())
-                        #     else:                   
-                        #         node_for_graph_labels = torch.concat([node_for_graph_labels,torch.full((1,batch.x.shape[0]), batch.y.item())],dim=1)
-                        
-                        # node_embedding = self.gnn(processed_dataset.x.to(self.device), processed_dataset.edge_index.to(self.device))
-                        # node_for_graph_labels=node_for_graph_labels.reshape((-1)).to(self.device)             
-                        # self.prompt.weigth_init(node_embedding,processed_dataset.edge_index.to(self.device), node_for_graph_labels, train_node_ids)
-
-                        # test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
-
-                        total_num_nodes = sum([data.num_nodes for data in train_dataset])
-                        train_node_ids = torch.arange(0,total_num_nodes).squeeze().to(self.device)
-                        self.gppt_loader = DataLoader(processed_dataset.to_data_list(), batch_size=1, shuffle=False)
-                        for i, batch in enumerate(self.gppt_loader):
-                            if(i==0):
-                                node_for_graph_labels = torch.full((1,batch.x.shape[0]), batch.y.item())
-                                node_embedding = self.gnn(batch.x.to(self.device), batch.edge_index.to(self.device))
-                            else:                   
-                                node_for_graph_labels = torch.concat([node_for_graph_labels,torch.full((1,batch.x.shape[0]), batch.y.item())],dim=1)
-                                node_embedding = torch.concat([node_embedding,self.gnn(batch.x.to(self.device), batch.edge_index.to(self.device))],dim=0)
-                        
-                        node_for_graph_labels=node_for_graph_labels.reshape((-1)).to(self.device)
-                        self.prompt.weigth_init(node_embedding,processed_dataset.edge_index.to(self.device), node_for_graph_labels, train_node_ids)
-
-                        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)                    
-                    else:
-                        train_node_ids = torch.arange(0,train_dataset.x.shape[0]).squeeze().to(self.device)
-                        # 将子图的节点id转换为全图的节点id
-                        iterate_id_num = 0
-                        for index, g in enumerate(train_dataset):
-                            current_node_ids = iterate_id_num+torch.arange(0,g.x.shape[0]).squeeze().to(self.device)
-                            iterate_id_num += g.x.shape[0]
-                            previous_node_num = sum([self.dataset[i].x.shape[0] for i in range(idx_train[index]-1)])
-                            train_node_ids[current_node_ids] += previous_node_num
-
-                        self.gppt_loader = DataLoader(self.dataset, batch_size=1, shuffle=True)
-                        for i, batch in enumerate(self.gppt_loader):
-                            if(i==0):
-                                node_for_graph_labels = torch.full((1,batch.x.shape[0]), batch.y.item())
-                            else:                   
-                                node_for_graph_labels = torch.concat([node_for_graph_labels,torch.full((1,batch.x.shape[0]), batch.y.item())],dim=1)
-                        
-                        node_embedding = self.gnn(self.dataset.x.to(self.device), self.dataset.edge_index.to(self.device))
-                        node_for_graph_labels=node_for_graph_labels.reshape((-1)).to(self.device)
-                        self.prompt.weigth_init(node_embedding,self.dataset.edge_index.to(self.device), node_for_graph_labels, train_node_ids)
-
-                        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
-
-                    # from torch_geometric.nn import global_mean_pool
-                    # self.gppt_pool = global_mean_pool
-                    # train_ids = torch.nonzero(idx_train, as_tuple=False).squeeze()
-                    # self.gppt_loader = DataLoader(self.dataset, batch_size=1, shuffle=True)          
+                    # total_num_nodes = sum([data.num_nodes for data in train_dataset])
+                    # train_node_ids = torch.arange(0,total_num_nodes).squeeze().to(self.device)
+                    # self.gppt_loader = DataLoader(processed_dataset, batch_size=1, shuffle=True)
                     # for i, batch in enumerate(self.gppt_loader):
-                    #     batch.to(self.device)
-                    #     node_embedding = self.gnn(batch.x, batch.edge_index)
                     #     if(i==0):
-                    #         graph_embedding = self.gppt_pool(node_embedding,batch.batch.long())
-                    #     else:
-                    #         graph_embedding = torch.concat([graph_embedding,self.gppt_pool(node_embedding,batch.batch.long())],dim=0)
+                    #         node_for_graph_labels = torch.full((1,batch.x.shape[0]), batch.y.item())
+                    #     else:                   
+                    #         node_for_graph_labels = torch.concat([node_for_graph_labels,torch.full((1,batch.x.shape[0]), batch.y.item())],dim=1)
                     
+                    # node_embedding = self.gnn(processed_dataset.x.to(self.device), processed_dataset.edge_index.to(self.device))
+                    # node_for_graph_labels=node_for_graph_labels.reshape((-1)).to(self.device)             
+                    # self.prompt.weigth_init(node_embedding,processed_dataset.edge_index.to(self.device), node_for_graph_labels, train_node_ids)
 
-                for epoch in range(1, self.epochs + 1):
-                    t0 = time.time()
+                    # test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
-                    if self.prompt_type == 'None':
-                        loss = self.Train(train_loader)
-                    elif self.prompt_type == 'All-in-one':
-                        loss = self.AllInOneTrain(train_loader,self.answer_epoch,self.prompt_epoch)
-                    elif self.prompt_type in ['GPF', 'GPF-plus']:
-                        loss = self.GPFTrain(train_loader)
-                    elif self.prompt_type =='Gprompt':
-                        loss, center = self.GpromptTrain(train_loader)
-                    elif self.prompt_type =='GPPT':
-                        loss = self.GPPTtrain(train_loader)
-                            
-                    if loss < best:
-                        best = loss
-                        # best_t = epoch
-                        cnt_wait = 0
-                        # torch.save(model.state_dict(), args.save_name)
-                    else:
-                        cnt_wait += 1
-                        if cnt_wait == patience:
-                                print('-' * 100)
-                                print('Early stopping at '+str(epoch) +' eopch!')
-                                break
-                    print("Epoch {:03d} |  Time(s) {:.4f} | Loss {:.4f}  ".format(epoch, time.time() - t0, loss))
-                import math
-                if not math.isnan(loss):
-                    batch_best_loss.append(loss)
-                print('Bengin to evaluate')
+                    total_num_nodes = sum([data.num_nodes for data in train_dataset])
+                    train_node_ids = torch.arange(0,total_num_nodes).squeeze().to(self.device)
+                    self.gppt_loader = DataLoader(processed_dataset.to_data_list(), batch_size=1, shuffle=False)
+                    for i, batch in enumerate(self.gppt_loader):
+                        if(i==0):
+                            node_for_graph_labels = torch.full((1,batch.x.shape[0]), batch.y.item())
+                            node_embedding = self.gnn(batch.x.to(self.device), batch.edge_index.to(self.device))
+                        else:                   
+                            node_for_graph_labels = torch.concat([node_for_graph_labels,torch.full((1,batch.x.shape[0]), batch.y.item())],dim=1)
+                            node_embedding = torch.concat([node_embedding,self.gnn(batch.x.to(self.device), batch.edge_index.to(self.device))],dim=0)
+                    
+                    node_for_graph_labels=node_for_graph_labels.reshape((-1)).to(self.device)
+                    self.prompt.weigth_init(node_embedding,processed_dataset.edge_index.to(self.device), node_for_graph_labels, train_node_ids)
+
+                    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)                    
+                else:
+                    train_node_ids = torch.arange(0,train_dataset.x.shape[0]).squeeze().to(self.device)
+                    # 将子图的节点id转换为全图的节点id
+                    iterate_id_num = 0
+                    for index, g in enumerate(train_dataset):
+                        current_node_ids = iterate_id_num+torch.arange(0,g.x.shape[0]).squeeze().to(self.device)
+                        iterate_id_num += g.x.shape[0]
+                        previous_node_num = sum([self.dataset[i].x.shape[0] for i in range(idx_train[index]-1)])
+                        train_node_ids[current_node_ids] += previous_node_num
+
+                    self.gppt_loader = DataLoader(self.dataset, batch_size=1, shuffle=True)
+                    for i, batch in enumerate(self.gppt_loader):
+                        if(i==0):
+                            node_for_graph_labels = torch.full((1,batch.x.shape[0]), batch.y.item())
+                        else:                   
+                            node_for_graph_labels = torch.concat([node_for_graph_labels,torch.full((1,batch.x.shape[0]), batch.y.item())],dim=1)
+                    
+                    node_embedding = self.gnn(self.dataset.x.to(self.device), self.dataset.edge_index.to(self.device))
+                    node_for_graph_labels=node_for_graph_labels.reshape((-1)).to(self.device)
+                    self.prompt.weigth_init(node_embedding,self.dataset.edge_index.to(self.device), node_for_graph_labels, train_node_ids)
+
+                    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+                # from torch_geometric.nn import global_mean_pool
+                # self.gppt_pool = global_mean_pool
+                # train_ids = torch.nonzero(idx_train, as_tuple=False).squeeze()
+                # self.gppt_loader = DataLoader(self.dataset, batch_size=1, shuffle=True)          
+                # for i, batch in enumerate(self.gppt_loader):
+                #     batch.to(self.device)
+                #     node_embedding = self.gnn(batch.x, batch.edge_index)
+                #     if(i==0):
+                #         graph_embedding = self.gppt_pool(node_embedding,batch.batch.long())
+                #     else:
+                #         graph_embedding = torch.concat([graph_embedding,self.gppt_pool(node_embedding,batch.batch.long())],dim=0)
                 
+
+            for epoch in range(1, self.epochs + 1):
+                t0 = time.time()
+
                 if self.prompt_type == 'None':
-                    test_acc, f1, roc, prc = GNNGraphEva(test_loader, self.gnn, self.answering, self.output_dim, self.device)
-                elif self.prompt_type =='GPPT':
-                    test_acc, f1, roc, prc = GPPTGraphEva(test_loader, self.gnn, self.prompt, self.output_dim, self.device)
+                    loss = self.Train(train_loader)
                 elif self.prompt_type == 'All-in-one':
-                    test_acc, f1, roc, prc = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)
+                    loss, acc = self.AllInOneTrain(train_loader,self.answer_epoch,self.prompt_epoch)
+                    test_acc, f1, roc, prc, _, test_loss, _ = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)
                 elif self.prompt_type in ['GPF', 'GPF-plus']:
-                    test_acc, f1, roc, prc = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)
+                    loss, acc= self.GPFTrain(train_loader)
+                    test_acc, f1, roc, prc, _, test_loss, _ = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)   
                 elif self.prompt_type =='Gprompt':
-                    test_acc, f1, roc, prc = GpromptEva(test_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
-
-
-                print(f"Final True Accuracy: {test_acc:.4f} | Macro F1 Score: {f1:.4f} | AUROC: {roc:.4f} | AUPRC: {prc:.4f}" )
-                print("best_loss",  batch_best_loss)                        
-                test_accs.append(test_acc)
-                f1s.append(f1)
-                rocs.append(roc)
-                prcs.append(prc)
+                    loss, center = self.GpromptTrain(train_loader)
+                elif self.prompt_type =='GPPT':
+                    loss = self.GPPTtrain(train_loader)
+                        
+                if loss < best:
+                    best = loss
+                    # best_t = epoch
+                    cnt_wait = 0
+                    # torch.save(model.state_dict(), args.save_name)
+                else:
+                    cnt_wait += 1
+                    if cnt_wait == patience:
+                            print('-' * 100)
+                            print('Early stopping at '+str(epoch) +' eopch!')
+                            break
+                print("Epoch {:03d} |  Time(s) {:.4f} | Train Loss {:.4f} | Test Loss {:.4f} | Train Acc {:.4f} | Test Acc {:.4f}  ".format(epoch, time.time() - t0, loss, test_loss, acc, test_acc))
+            import math
+            if not math.isnan(loss):
+                batch_best_loss.append(loss)
+            print('Bengin to evaluate')
             
-            mean_test_acc = np.mean(test_accs)
-            std_test_acc = np.std(test_accs)    
-            mean_f1 = np.mean(f1s)
-            std_f1 = np.std(f1s)   
-            mean_roc = np.mean(rocs)
-            std_roc = np.std(rocs)   
-            mean_prc = np.mean(prcs)
-            std_prc = np.std(prcs) 
-            print(" Final best | test Accuracy {:.4f}±{:.4f}(std)".format(mean_test_acc, std_test_acc))   
-            print(" Final best | test F1 {:.4f}±{:.4f}(std)".format(mean_f1, std_f1))   
-            print(" Final best | AUROC {:.4f}±{:.4f}(std)".format(mean_roc, std_roc))   
-            print(" Final best | AUPRC {:.4f}±{:.4f}(std)".format(mean_prc, std_prc))   
+            if self.prompt_type == 'None':
+                test_acc, f1, roc, prc = GNNGraphEva(test_loader, self.gnn, self.answering, self.output_dim, self.device)
+            elif self.prompt_type =='GPPT':
+                test_acc, f1, roc, prc = GPPTGraphEva(test_loader, self.gnn, self.prompt, self.output_dim, self.device)
+            elif self.prompt_type == 'All-in-one':
+                train_acc, _, _, _, outs_train, _, labels_train = AllInOneEva(train_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)                                                
+                test_acc, _, _, _, outs_test, _, labels_test = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device) 
+            elif self.prompt_type in ['GPF', 'GPF-plus']:
+                train_acc, _, _, _, outs_train, _, labels_train = GPFEva(train_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                 
+                test_acc, _, _, _, outs_test, _, labels_test = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)        
+            elif self.prompt_type =='Gprompt':
+                test_acc, f1, roc, prc = GpromptEva(test_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
+
+            if self.use_different_dataset:
+                train_path = './Experiment_diff_dataset/outs/Graph/{}shot/{}_{}/train/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
+                test_path = './Experiment_diff_dataset/outs/Graph/{}shot/{}_{}/test/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
+            else:
+                train_path = './Experiment/outs/Graph/{}shot/{}_{}/train/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
+                test_path = './Experiment/outs/Graph/{}shot/{}_{}/test/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
+            if not os.path.exists(os.path.split(train_path)[0]):
+                os.makedirs(os.path.split(train_path)[0])
+            if not os.path.exists(os.path.split(test_path)[0]):
+                os.makedirs(os.path.split(test_path)[0])
+            with open(train_path, 'a') as f:
+                print(train_path)
+                for index, out_train in enumerate(outs_train):
+                        f.write('{} '.format(self.seed))
+                        for value in out_train:
+                            f.write('{} '.format(value.item()))
+                        f.write('{}'.format(labels_train[index].item()))
+                        f.write('\n')
+            
+            with open(test_path, 'a') as f:
+                print(test_path)
+                for index, out_test in enumerate(outs_test):
+                        f.write('{} '.format(self.seed))
+                        for value in out_test:
+                            f.write('{} '.format(value.item()))
+                        f.write('{}'.format(labels_test[index].item()))
+                        f.write('\n') 
+
+
+            print(f"Final True Accuracy: {test_acc:.4f} | Macro F1 Score: {f1:.4f} | AUROC: {roc:.4f} | AUPRC: {prc:.4f}" )
+            print("best_loss",  batch_best_loss)                        
 
             print(self.pre_train_type, self.gnn_type, self.prompt_type, " Graph Task completed")
-            mean_best = np.mean(batch_best_loss)
 
-            return  mean_best, mean_test_acc, std_test_acc, mean_f1, std_f1, mean_roc, std_roc, mean_prc, std_prc
+            return  test_acc, f1, roc, prc, self.prompt, self.answering
 
         
 

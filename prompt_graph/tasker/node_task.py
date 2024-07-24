@@ -92,15 +92,18 @@ class NodeTask(BaseTask):
             self.data, self.input_dim, self.output_dim = load4node(self.dataset_name)
 
       def train(self, data, train_idx):
+            accuracy = torchmetrics.classification.Accuracy(task="multiclass", num_classes=self.output_dim).to(self.device)
             self.gnn.train()
             self.answering.train()
             self.optimizer.zero_grad() 
             out = self.gnn(data.x, data.edge_index, batch=None) 
             out = self.answering(out)
+            pred = out.argmax(dim=1)
+            acc = accuracy(pred[train_idx], data.y[train_idx])
             loss = self.criterion(out[train_idx], data.y[train_idx])
             loss.backward()  
             self.optimizer.step()  
-            return loss.item()
+            return loss.item(), acc.item()
       
       def GPPTtrain(self, data, train_idx):
             accuracy = torchmetrics.classification.Accuracy(task="multiclass", num_classes=self.output_dim).to(self.device)
@@ -281,7 +284,7 @@ class NodeTask(BaseTask):
             # 1. split idx_train, train_lbls, idx_test, test_lbls into two equal parts as the target/shadow datasets
             if flag == 'target':
                   idx_train = idx_train_[:int(len(idx_train_)/2)]
-                  train_lbls = train_lbls_[:int(len(train_lbls_)/2)]
+                  train_lbls = train_lbls_[:int(len(idx_train_)/2)]
                   idx_test = idx_test_[:int(len(idx_test_)/2)]
                   test_lbls = test_lbls_[:int(len(test_lbls_)/2)]
             elif flag == 'shadow':
@@ -290,11 +293,13 @@ class NodeTask(BaseTask):
                   idx_test = idx_test_[int(len(idx_test_)/2):]
                   test_lbls = test_lbls_[int(len(test_lbls_)/2):]
             else:
-                  idx_train = idx_train_
-                  train_lbls = train_lbls_
-                  idx_test = idx_test_
-                  test_lbls = test_lbls_
-
+                  print('Train: {}, Test: {}'.format(len(idx_train_), len(idx_test_)))
+                  idx_train = idx_train_[:int(len(idx_train_)/2)]
+                  train_lbls = train_lbls_[:int(len(idx_train_)/2)]
+                  idx_test = idx_test_[:int(len(idx_test_)/2)]
+                  test_lbls = test_lbls_[:int(len(test_lbls_)/2)]
+            
+            print('Num of Train: {}, Num of Test: {}'.format(len(idx_train), len(idx_test)))
             # GPPT prompt initialtion
             if self.prompt_type == 'GPPT':
                   node_embedding = self.gnn(self.data.x, self.data.edge_index)
@@ -345,7 +350,8 @@ class NodeTask(BaseTask):
                   t0 = time.time()
 
                   if self.prompt_type == 'None':
-                        loss = self.train(self.data, idx_train)                             
+                        loss, acc = self.train(self.data, idx_train)        
+                        test_acc, _, _, _, test_loss = GNNNodeEva(self.data, idx_test,  self.gnn, self.answering, self.output_dim, self.device)                 
                   elif self.prompt_type == 'GPPT':
                         loss, acc = self.GPPTtrain(self.data, idx_train)  
                         test_acc, f1, roc, prc, _, test_loss, _= GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device) 
@@ -399,6 +405,7 @@ class NodeTask(BaseTask):
                         os.makedirs(os.path.split(train_path)[0])
                   if not os.path.exists(os.path.split(test_path)[0]):
                         os.makedirs(os.path.split(test_path)[0])
+                        
                   with open(train_path, 'a') as f:
                         print(train_path)
                         for index, out_train in enumerate(outs_train):
@@ -441,7 +448,7 @@ class NodeTask(BaseTask):
                   batch_best_loss.append(loss)
             
                   if self.prompt_type == 'None':
-                        test_acc, f1, roc, prc = GNNNodeEva(self.data, idx_test, self.gnn, self.answering,self.output_dim, self.device)                           
+                        test_acc, f1, roc, prc, test_loss = GNNNodeEva(self.data, idx_test, self.gnn, self.answering,self.output_dim, self.device)                           
                   elif self.prompt_type == 'GPPT':
                         test_acc, f1, roc, prc, _, _, _ = GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device)                
                   elif self.prompt_type == 'All-in-one':
