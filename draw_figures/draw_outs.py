@@ -10,6 +10,7 @@ import random
 import pickle
 import torch
 import ipdb
+import torchmetrics
 
 # matplotlib.rc('xtick', labelsize=25) 
 # matplotlib.rc('ytick', labelsize=25) 
@@ -31,8 +32,10 @@ Seeds = range(100)
 
 N_Ss = range(1, 11)
 
+accuracy = torchmetrics.classification.Accuracy(task="multiclass", num_classes=7).to('cpu')
+
 def read_data(path, shot_num):
-    d = np.zeros(((len(Seeds), 70, 8))) # [len(Pretrains), len(Prompts), 7]
+    d = np.zeros(((len(Seeds), int(shot_num*7), 8))) # [len(Pretrains), len(Prompts), 7]
     count = np.zeros(len(Seeds))
     with open(path, 'r') as f:
         for line in f.readlines()[:]:
@@ -52,21 +55,36 @@ def read_data(path, shot_num):
     #             print(Pretrains[i], path)
     return d
 
-def draw_bar(outs_train_100, outs_test_100, pre_train_type, prompt_type, dataset, pre_train_data, model, shot_num):
+def draw_bar(outs_train_100, outs_test_100, pre_train_type, prompt_type, dataset, pre_train_data, model, shot_num, logit_scaling=False):
     n_bins = 10
     labels_train_100 = outs_train_100[:, :, -1].astype(np.int64)
     labels_test_100 = outs_test_100[:, :, -1].astype(np.int64)
     prob_train_100 = outs_train_100[:, :, :-1]
     prob_test_100 = outs_test_100[:, :, :-1]
+    acc_train = accuracy(torch.from_numpy(prob_train_100.reshape(int(100*shot_num*7), 7)), torch.from_numpy(labels_train_100.reshape(int(100*shot_num*7))))
+    acc_test = accuracy(torch.from_numpy(prob_test_100.reshape(int(100*shot_num*7), 7)), torch.from_numpy(labels_test_100.reshape(int(100*shot_num*7))))
+    print('Train Acc: {:.4f}, Test Acc: {:.4f}, Acc Diff: {:.4f}'.format(acc_train, acc_test, acc_train-acc_test))
+
     # prob_train = outs_train[torch.arange(outs_train.size(0)), labels_train].numpy()
     # prob_test = outs_test[torch.arange(outs_test.size(0)), labels_test].numpy()
-    prob_train = np.zeros((len(Seeds), 70))
-    prob_test = np.zeros((len(Seeds), 70))
+    prob_train = np.zeros((len(Seeds), int(shot_num*7)))
+    prob_test = np.zeros((len(Seeds), int(shot_num*7)))
+    prob_train_wrong = np.zeros((len(Seeds), int(shot_num*7)))
+    prob_test_wrong = np.zeros((len(Seeds), int(shot_num*7)))
+    logit_train = np.zeros((len(Seeds), int(shot_num*7)))
+    logit_test = np.zeros((len(Seeds), int(shot_num*7)))
     for i in range(len(Seeds)):
-        prob_train[i] = prob_train_100[i][np.arange(prob_train_100.shape[1]), labels_train_100[i]]
+        prob_train[i] = prob_train_100[i][np.arange(prob_train_100.shape[1]), labels_train_100[i]] # [70]
         prob_test[i] = prob_test_100[i][np.arange(prob_test_100.shape[1]), labels_test_100[i]]
+        prob_train_wrong[i] = np.sum(prob_train_100[i], axis=1) - prob_train[i]
+        prob_test_wrong[i] = np.sum(prob_test_100[i], axis=1) - prob_test[i]
+        logit_train[i] = np.log(prob_train[i]+1e-45) - np.log(prob_train_wrong[i]+1e-45)
+        logit_test[i] = np.log(prob_test[i]+1e-45) - np.log(prob_test_wrong[i]+1e-45)
 
-    x = [prob_train.flatten(), prob_test.flatten()]
+    if logit_scaling:
+        x = [logit_train.flatten(), logit_test.flatten()]
+    else:
+        x = [prob_train.flatten(), prob_test.flatten()]
 
     fig, ax = plt.subplots(layout='constrained')
     colors = ['blue', 'red']
@@ -76,41 +94,55 @@ def draw_bar(outs_train_100, outs_test_100, pre_train_type, prompt_type, dataset
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax.set_ylabel('Density')
-    ax.set_xlabel('Target prediction probability')
-    ax.set_title('Probability distribution ({}_{}_{}_{}+{}+{}shot_100)'.format(pre_train_type, prompt_type, pre_train_data, dataset, model, shot_num))
+    if logit_scaling:
+        ax.set_xlabel('Logit scaling value')
+    else:
+        ax.set_xlabel('Target prediction probability')
+    ax.set_title('Train & Test Distribution ({}_{}_{}_{}+{}+{}shot_100)'.format(pre_train_type, prompt_type, pre_train_data, dataset, model, shot_num))
     ax.legend(loc='upper left')
+    ax.text(0.1, 5.0, 'train acc: {:.4f} \n test acc: {:.4f}'.format(acc_train, acc_test))
 
     # plt.show()
-    save_path = "./figs/outs/" + '{}_{}_{}_{}_{}_{}_outs_100.png'.format(pre_train_type, prompt_type, pre_train_data, dataset, model, shot_num)
+    if logit_scaling:
+        save_path = "./figs/logit_scaling/{}shot/".format(shot_num) + '{}_{}_{}_{}_{}_outs_100.png'.format(pre_train_type, prompt_type, pre_train_data, dataset, model)
+    else:
+        save_path = "./figs/outs/{}shot/".format(shot_num) + '{}_{}_{}_{}_{}_outs_100.png'.format(pre_train_type, prompt_type, pre_train_data, dataset, model)
+    print(save_path)
+    isExist = os.path.exists(os.path.split(save_path)[0])
+    if not isExist:
+        os.makedirs(os.path.split(save_path)[0])
     plt.savefig(save_path, format='png', bbox_inches='tight', dpi=1200)
     plt.close()
     print('save fig done')
 
 if __name__ == "__main__":
     dataset = 'Cora'
-    pre_train_data = 'PubMed'
+    pre_train_data = ['CiteSeer','PubMed', 'Photo', 'ogbn-arxiv']
     use_different_dataset = True
-    shot_num = 10
+    shot_nums = range(1, 6)
     pre_train_type = ['GraphCL', 'SimGRACE', 'GraphMAE', 'DGI', 'Edgepred_GPPT', 'Edgepred_Gprompt']
-    prompt_type = 'All-in-one'
+    prompt_type = 'GPF-plus'
     model='GCN'
-    if use_different_dataset:
-        path = "./Experiment_diff_dataset/outs/Node/{}shot/{}_{}".format(shot_num, dataset, pre_train_data)
-    else:
-        path = "./Experiment/outs/Node/{}shot/{}_{}".format(shot_num, dataset, pre_train_data)
-    for ptt in pre_train_type[1:2]:
-        outs_train_path = os.path.join(path, "train/{}_{}_{}.txt".format(ptt, prompt_type, model))
-        outs_train_100 = read_data(outs_train_path, shot_num)
+    for shot_num in shot_nums:
+        for ptd in pre_train_data:
+            if use_different_dataset:
+                path = "./Experiment_diff_dataset/outs/Node/{}shot/{}_{}".format(shot_num, dataset, ptd)
+            else:
+                path = "./Experiment/outs/Node/{}shot/{}_{}".format(shot_num, dataset, ptd)
+            for ptt in pre_train_type[2:3]:
+                outs_train_path = os.path.join(path, "train/{}_{}_{}.txt".format(ptt, prompt_type, model))
+                outs_train_100 = read_data(outs_train_path, shot_num)
 
-        outs_test_path = os.path.join(path, "test/{}_{}_{}.txt".format(ptt, prompt_type, model))
-        outs_test_100 = read_data(outs_test_path, shot_num)
+                outs_test_path = os.path.join(path, "test/{}_{}_{}.txt".format(ptt, prompt_type, model))
+                outs_test_100 = read_data(outs_test_path, shot_num)
+                # accurate accuracy
 
-    # outs_train = torch.load(os.path.join(path, "train/{}_{}_{}.txt".format(pre_train_type, prompt_type, model)))
-    # outs_test = torch.load(os.path.join(path, "{}_{}_{}_outs_test.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
-    # labels_train = torch.load(os.path.join(path, "{}_{}_{}_labels_train.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
-    # labels_test = torch.load(os.path.join(path, "{}_{}_{}_labels_test.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
-        draw_bar(outs_train_100, outs_test_100, ptt, prompt_type, dataset=dataset, pre_train_data = pre_train_data, model=model, shot_num=shot_num)
-    # print the maximum result for each prompt method among six pre-training methods
+
+                # outs_train = torch.load(os.path.join(path, "train/{}_{}_{}.txt".format(pre_train_type, prompt_type, model)))
+                # outs_test = torch.load(os.path.join(path, "{}_{}_{}_outs_test.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
+                # labels_train = torch.load(os.path.join(path, "{}_{}_{}_labels_train.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
+                # labels_test = torch.load(os.path.join(path, "{}_{}_{}_labels_test.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
+                draw_bar(outs_train_100, outs_test_100, ptt, prompt_type, dataset=dataset, pre_train_data = ptd, model=model, shot_num=shot_num, logit_scaling=False)
 
 def draw_figure(data_avg_adv, data_std_adv, data_avg_ben, data_std_ben, dataset, recover_from):
     filename = '{}_{}.pdf'.format(dataset, model)
