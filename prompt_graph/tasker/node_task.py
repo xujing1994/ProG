@@ -34,7 +34,7 @@ class NodeTask(BaseTask):
                   self.answering =  torch.nn.Sequential(torch.nn.Linear(self.hid_dim, self.output_dim),
                                                 torch.nn.Softmax(dim=1)).to(self.device) 
             # self.create_few_data_folder()
-            self.train_idx, self.train_labels, self.test_idx, self.test_labels = node_sample_and_save(self.data, int(self.shot_num*2), folder=None, num_classes=self.output_dim, seed=self.seed)
+            self.train_idx, self.train_labels, self.test_idx, self.test_labels = node_sample_and_save(self.data, self.shot_num, folder=None, num_classes=self.output_dim, seed=self.seed)
 
       def create_few_data_folder(self):
             # 创建文件夹并保存数据
@@ -270,10 +270,10 @@ class NodeTask(BaseTask):
             self.initialize_gnn()
             self.initialize_prompt()
             self.initialize_optimizer()
-            idx_train_ = self.train_idx
-            train_lbls_ = self.train_labels
-            idx_test_ = self.test_idx
-            test_lbls_ = self.test_labels
+            idx_train = self.train_idx
+            train_lbls = self.train_labels
+            idx_test = self.test_idx
+            test_lbls = self.test_labels
             # idx_train_ = torch.load("{}/{}/train_idx.pt".format(folder, i)).type(torch.long).to(self.device)
             # print('idx_train',idx_train_)
             # train_lbls_ = torch.load("{}/{}/train_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
@@ -282,22 +282,22 @@ class NodeTask(BaseTask):
             # test_lbls_ = torch.load("{}/{}/test_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
 
             # 1. split idx_train, train_lbls, idx_test, test_lbls into two equal parts as the target/shadow datasets
-            if flag == 'target':
-                  idx_train = idx_train_[:int(len(idx_train_)/2)]
-                  train_lbls = train_lbls_[:int(len(idx_train_)/2)]
-                  idx_test = idx_test_[:int(len(idx_test_)/2)]
-                  test_lbls = test_lbls_[:int(len(test_lbls_)/2)]
-            elif flag == 'shadow':
-                  idx_train = idx_train_[int(len(idx_train_)/2):]
-                  train_lbls = train_lbls_[int(len(train_lbls_)/2):]
-                  idx_test = idx_test_[int(len(idx_test_)/2):]
-                  test_lbls = test_lbls_[int(len(test_lbls_)/2):]
-            else:
-                  print('Train: {}, Test: {}'.format(len(idx_train_), len(idx_test_)))
-                  idx_train = idx_train_[:int(len(idx_train_)/2)]
-                  train_lbls = train_lbls_[:int(len(idx_train_)/2)]
-                  idx_test = idx_test_[:int(len(idx_test_)/2)]
-                  test_lbls = test_lbls_[:int(len(test_lbls_)/2)]
+            # if flag == 'target':
+            #       idx_train = idx_train_[:int(len(idx_train_)/2)]
+            #       train_lbls = train_lbls_[:int(len(idx_train_)/2)]
+            #       idx_test = idx_test_[:int(len(idx_test_)/2)]
+            #       test_lbls = test_lbls_[:int(len(test_lbls_)/2)]
+            # elif flag == 'shadow':
+            #       idx_train = idx_train_[int(len(idx_train_)/2):]
+            #       train_lbls = train_lbls_[int(len(train_lbls_)/2):]
+            #       idx_test = idx_test_[int(len(idx_test_)/2):]
+            #       test_lbls = test_lbls_[int(len(test_lbls_)/2):]
+            # else:
+            #       print('Train: {}, Test: {}'.format(len(idx_train_), len(idx_test_)))
+            #       idx_train = idx_train_[:int(len(idx_train_)/2)]
+            #       train_lbls = train_lbls_[:int(len(idx_train_)/2)]
+            #       idx_test = idx_test_[:int(len(idx_test_)/2)]
+            #       test_lbls = test_lbls_[:int(len(test_lbls_)/2)]
             
             print('Num of Train: {}, Num of Test: {}'.format(len(idx_train), len(idx_test)))
             # GPPT prompt initialtion
@@ -321,6 +321,7 @@ class NodeTask(BaseTask):
                   # reduce test dataset to the same size as the training dataset
                   if len(test_graphs) > len(train_graphs):
                         test_graphs = test_graphs[:len(train_graphs)]
+                  print('Final Num of Train: {}, Num of Test: {}'.format(len(train_graphs), len(test_graphs)))
 
                   train_dataset = GraphDataset(train_graphs)
                   test_dataset = GraphDataset(test_graphs)
@@ -382,47 +383,53 @@ class NodeTask(BaseTask):
                   
                   print("Epoch {:03d} |  Time(s) {:.4f} | Train Loss {:.4f} | Test Loss {:.4f} | Train Acc {:.4f} | Test Acc {:.4f}  ".format(epoch, time.time() - t0, loss, test_loss, acc, test_acc))
             # check the probability of target class among member and non-member
-            if flag == 'target' and mia_risk:
-                  if self.prompt_type in ['GPF', 'GPF-plus']:
-                        train_acc, _, _, _, outs_train, _, labels_train = GPFEva(train_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                 
-                        test_acc, _, _, _, outs_test, _, labels_test = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)        
-                        
-                  elif self.prompt_type == 'All-in-one':
-                        train_acc, _, _, _, outs_train, _, labels_train = AllInOneEva(train_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)                                                
-                        test_acc, _, _, _, outs_test, _, labels_test = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device) 
-                  elif self.prompt_type == 'GPPT':
-                        train_acc, _, _, _, outs_train, _, labels_train = GPPTEva(self.data, idx_train, self.gnn, self.prompt, self.output_dim, self.device)                
-                        test_acc, _, _, _, outs_test, _, labels_test = GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device)  
-                  # save outs_train, outs_test, labels_train, labels_test, for 100 times (100 seeds)     
-
+            if flag == 'shadow':
                   if self.use_different_dataset:
                         train_path = './Experiment_diff_dataset/outs/Node/{}shot/{}_{}/train/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
                         test_path = './Experiment_diff_dataset/outs/Node/{}shot/{}_{}/test/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
                   else:
                         train_path = './Experiment/outs/Node/{}shot/{}_{}/train/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
                         test_path = './Experiment/outs/Node/{}shot/{}_{}/test/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
-                  if not os.path.exists(os.path.split(train_path)[0]):
-                        os.makedirs(os.path.split(train_path)[0])
-                  if not os.path.exists(os.path.split(test_path)[0]):
-                        os.makedirs(os.path.split(test_path)[0])
-                        
-                  with open(train_path, 'a') as f:
-                        print(train_path)
-                        for index, out_train in enumerate(outs_train):
-                              f.write('{} '.format(self.seed))
-                              for value in out_train:
-                                    f.write('{} '.format(value.item()))
-                              f.write('{}'.format(labels_train[index].item()))
-                              f.write('\n')
+            elif flag == 'target':
+                  if self.use_different_dataset:
+                        train_path = './Experiment_diff_dataset/target_outs/Node/{}shot/{}_{}/train/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
+                        test_path = './Experiment_diff_dataset/target_outs/Node/{}shot/{}_{}/test/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
+                  else:
+                        train_path = './Experiment/target_outs/Node/{}shot/{}_{}/train/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
+                        test_path = './Experiment/target_outs/Node/{}shot/{}_{}/test/{}_{}_{}.txt'.format(self.shot_num, self.dataset_name, self.pre_train_data, self.pre_train_type, self.prompt_type, self.gnn_type)
+            if not os.path.exists(os.path.split(train_path)[0]):
+                  os.makedirs(os.path.split(train_path)[0])
+            if not os.path.exists(os.path.split(test_path)[0]):
+                  os.makedirs(os.path.split(test_path)[0])
+            if self.prompt_type in ['GPF', 'GPF-plus']:
+                  train_acc, _, _, _, outs_train, _, labels_train = GPFEva(train_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                 
+                  test_acc, _, _, _, outs_test, _, labels_test = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)        
                   
-                  with open(test_path, 'a') as f:
-                        print(test_path)
-                        for index, out_test in enumerate(outs_test):
-                              f.write('{} '.format(self.seed))
-                              for value in out_test:
-                                    f.write('{} '.format(value.item()))
-                              f.write('{}'.format(labels_test[index].item()))
-                              f.write('\n')                     
+            elif self.prompt_type == 'All-in-one':
+                  train_acc, _, _, _, outs_train, _, labels_train = AllInOneEva(train_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)                                                
+                  test_acc, _, _, _, outs_test, _, labels_test = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device) 
+            elif self.prompt_type == 'GPPT':
+                  train_acc, _, _, _, outs_train, _, labels_train = GPPTEva(self.data, idx_train, self.gnn, self.prompt, self.output_dim, self.device)                
+                  test_acc, _, _, _, outs_test, _, labels_test = GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device)  
+            # save outs_train, outs_test, labels_train, labels_test, for 100 times (100 seeds)     
+                  
+            with open(train_path, 'a') as f:
+                  print(train_path)
+                  for index, out_train in enumerate(outs_train):
+                        f.write('{} '.format(self.seed))
+                        for value in out_train:
+                              f.write('{} '.format(value.item()))
+                        f.write('{}'.format(labels_train[index].item()))
+                        f.write('\n')
+            
+            with open(test_path, 'a') as f:
+                  print(test_path)
+                  for index, out_test in enumerate(outs_test):
+                        f.write('{} '.format(self.seed))
+                        for value in out_test:
+                              f.write('{} '.format(value.item()))
+                        f.write('{}'.format(labels_test[index].item()))
+                        f.write('\n')         
                   # self.draw_prob_dis(outs_train, outs_test, labels_train, labels_test)
 
 
@@ -463,29 +470,7 @@ class NodeTask(BaseTask):
 
                   print(f"Final True Accuracy: {test_acc:.4f} | Macro F1 Score: {f1:.4f} | AUROC: {roc:.4f} | AUPRC: {prc:.4f}" )
                   print("best_loss",  batch_best_loss)     
-                              
-                  test_accs.append(test_acc)
-                  f1s.append(f1)
-                  rocs.append(roc)
-                  prcs.append(prc)
-        
-            mean_test_acc = np.mean(test_accs)
-            std_test_acc = np.std(test_accs)    
-            mean_f1 = np.mean(f1s)
-            std_f1 = np.std(f1s)   
-            mean_roc = np.mean(rocs)
-            std_roc = np.std(rocs)   
-            mean_prc = np.mean(prcs)
-            std_prc = np.std(prcs) 
-            print(" Final best | test Accuracy {:.4f}±{:.4f}(std)".format(mean_test_acc, std_test_acc))   
-            print(" Final best | test F1 {:.4f}±{:.4f}(std)".format(mean_f1, std_f1))   
-            print(" Final best | AUROC {:.4f}±{:.4f}(std)".format(mean_roc, std_roc))   
-            print(" Final best | AUPRC {:.4f}±{:.4f}(std)".format(mean_prc, std_prc))   
-
-            print(self.pre_train_type, self.gnn_type, self.prompt_type, " Node Task completed")
-            mean_best = np.mean(batch_best_loss)
-
-            return  mean_best, mean_test_acc, std_test_acc, mean_f1, std_f1, mean_roc, std_roc, mean_prc, std_prc, self.prompt, self.answering
+            return  test_acc, f1, roc, prc, self.prompt, self.answering
 
                   
             # elif self.prompt_type != 'MultiGprompt':

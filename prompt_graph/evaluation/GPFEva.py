@@ -17,14 +17,14 @@ def GPFEva(loader, gnn, prompt, answering, num_class, device):
     auprc.reset()
     outs = []
     labels = []
-    #features = []
+    features = []
     acc = 0.0
     with torch.no_grad(): 
         for batch_id, batch in enumerate(loader): 
             labels.append(batch.y)
             batch = batch.to(device) 
             batch.x = prompt.add(batch.x)
-            #features.append(batch.x)
+            features.append(batch.x) # batch.x: the node features of the target nodes and their corresponding neighboring nodes.
             out = gnn(batch.x, batch.edge_index, batch.batch)
             if answering:
                 out = answering(out)  
@@ -46,4 +46,4 @@ def GPFEva(loader, gnn, prompt, answering, num_class, device):
     roc = auroc.compute()
     prc = auprc.compute()
        
-    return acc / len(loader), ma_f1.item(), roc.item(),prc.item(), torch.cat(outs, dim=0), loss.item(), torch.cat(labels, dim=0)#, torch.cat(features, dim=0)
+    return acc / len(loader), ma_f1.item(), roc.item(),prc.item(), torch.cat(outs, dim=0), loss.item(), torch.cat(labels, dim=0)

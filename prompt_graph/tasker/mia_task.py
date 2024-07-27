@@ -19,7 +19,7 @@ import torch.nn as nn
 warnings.filterwarnings("ignore")
 
 class MIATask(BaseTask):
-      def __init__(self, data, input_dim, output_dim, prompt, graphs_list = None, *args, **kwargs):
+      def __init__(self, data, input_dim, output_dim, prompt, graphs_list = None, train_idx=None, test_idx=None, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.task_type = 'MIATask'
             if self.prompt_type == 'MultiGprompt':
@@ -35,6 +35,8 @@ class MIATask(BaseTask):
                                                 torch.nn.Softmax(dim=1)).to(self.device) 
                   self.attack_model = Net(output_dim)
                   self.prompt = prompt
+                  self.train_idx = train_idx
+                  self.test_idx = test_idx
             
 
       def load_multigprompt_data(self):
@@ -138,104 +140,82 @@ class MIATask(BaseTask):
             else:
                   folder = "./Experiment/sample_data/Node/{}/{}_shot".format(self.dataset_name, int(self.shot_num*2))
 
-            for i in range(self.seed, self.seed+1): # specify the seed
-                  self.initialize_gnn()
-                  # self.initialize_optimizer()
-                  idx_train = torch.load("{}/{}/train_idx.pt".format(folder, i)).type(torch.long).to(self.device)
-                  print('idx_train',idx_train)
-                  train_lbls = torch.load("{}/{}/train_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
-                  print("true",i,train_lbls)
-                  idx_test = torch.load("{}/{}/test_idx.pt".format(folder, i)).type(torch.long).to(self.device)
-                  test_lbls = torch.load("{}/{}/test_labels.pt".format(folder, i)).type(torch.long).squeeze().to(self.device)
+            self.initialize_gnn()
+            # 1. split idx_train, train_lbls, idx_test, test_lbls into two equal parts as the target/shadow datasets
+            train_idx_target = self.train_idx[:int(len(self.train_idx)/2)]
+            train_idx_shadow = self.train_idx[int(len(self.train_idx)/2):]
+            test_idx_target = self.test_idx[:int(len(self.test_idx)/2)]
+            test_idx_shadow = self.test_idx[int(len(self.test_idx)/2):]
 
-                  # 1. split idx_train, train_lbls, idx_test, test_lbls into two equal parts as the target/shadow datasets
-                  idx_train = idx_train[int(len(idx_train)/2):]
-                  train_lbls = train_lbls[int(len(train_lbls)/2):]
-                  idx_test = idx_test[int(len(idx_test)/2):]
-                  test_lbls = test_lbls[int(len(test_lbls)/2):]
+            if len(train_idx_shadow) < len(test_idx_shadow):
+                  test_idx_shadow = test_idx_target[:len(train_idx_shadow)]
+            
+            print("number of train data: {}, test data: {}".format(len(train_idx_shadow), len(test_idx_target)))
+            
+            if self.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
+                  train_graphs = []
+                  test_graphs = []
+                  # self.graphs_list.to(self.device)
+                  print('distinguishing the train dataset and test dataset...')
+                  for graph in self.graphs_list:                              
+                        if graph.index in train_idx_shadow:
+                              train_graphs.append(graph)
+                        elif graph.index in test_idx_target:
+                              test_graphs.append(graph)
+                  print('Done!!!')
 
-                  if len(idx_train) < len(idx_test):
-                        idx_test = idx_test[:len(idx_train)]
-                        test_lbls = test_lbls[:len(idx_train)]
-                  print("number of train data: {}, test data: {}".format(len(idx_train), len(idx_test)))
-                  
-                  if self.prompt_type in ['Gprompt', 'All-in-one', 'GPF', 'GPF-plus']:
-                        train_graphs = []
-                        test_graphs = []
-                        # self.graphs_list.to(self.device)
-                        print('distinguishing the train dataset and test dataset...')
-                        for graph in self.graphs_list:                              
-                              if graph.index in idx_train:
-                                    train_graphs.append(graph)
-                              elif graph.index in idx_test:
-                                    test_graphs.append(graph)
-                        print('Done!!!')
+                  train_dataset = GraphDataset(train_graphs)
+                  test_dataset = GraphDataset(test_graphs)
 
-                        train_dataset = GraphDataset(train_graphs)
-                        test_dataset = GraphDataset(test_graphs)
+                  # 创建数据加载器
+                  train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=False)
+                  test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
+                  print("prepare induce graph data is finished!")
 
-                        # 创建数据加载器
-                        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=False)
-                        test_loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
-                        print("prepare induce graph data is finished!")
+            if self.prompt_type == 'MultiGprompt':
+                  embeds, _ = self.Preprompt.embed(self.features, self.sp_adj, True, None, False)
+                  pretrain_embs = embeds[0, idx_train]
+                  test_embs = embeds[0, idx_test]
+            
+            # build training dataset for attach model
+            if self.prompt_type == 'None':
+                  test_acc, f1, roc, prc = GNNNodeEva(self.data, idx_test, self.gnn, self.answering,self.output_dim, self.device)                           
+            if self.prompt_type in ['GPF', 'GPF-plus']:
+                  train_acc, _, _, _, outs_train, _, labels_train, features_train = GPFEva(train_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                 
+                  test_acc, _, _, _, outs_test, _, labels_test, features_test = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)        
+            elif self.prompt_type == 'All-in-one':
+                  train_acc, _, _, _, outs_train, _, labels_train = AllInOneEva(train_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)                                                
+                  test_acc, _, _, _, outs_test, _, labels_test = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device) 
+            elif self.prompt_type == 'GPPT':
+                  train_acc, _, _, _, outs_train, _, labels_train = GPPTEva(self.data, idx_train, self.gnn, self.prompt, self.output_dim, self.device)                
+                  test_acc, _, _, _, outs_test, _, labels_test = GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device)  
+            elif self.prompt_type == 'MultiGprompt':
+                  prompt_feature = self.feature_prompt(self.features)
+                  test_acc, f1, roc, prc = MultiGpromptEva(test_embs, test_lbls, idx_test, prompt_feature, self.Preprompt, self.DownPrompt, self.sp_adj, self.output_dim, self.device)  
+            
+            # train attack model
+            # generate attack feature
+            
+            pos_labels = torch.ones(outs_train.shape[0])
+            neg_labels = torch.zeros(outs_test.shape[0])
+            outs_data = torch.cat((outs_train, outs_test), dim=0)
+            outs_labels = torch.cat((pos_labels, neg_labels), dim = 0)
+            # ipdb.set_trace()
+            # the number of testing dataset is significantly higher than that of the training dataset --> adjust the number of training dataset and testing dataset for the shadow prompt
 
-                  if self.prompt_type == 'MultiGprompt':
-                        embeds, _ = self.Preprompt.embed(self.features, self.sp_adj, True, None, False)
-                        pretrain_embs = embeds[0, idx_train]
-                        test_embs = embeds[0, idx_test]
-                  
-                  # build training dataset for attach model
-                  if self.prompt_type == 'None':
-                        test_acc, f1, roc, prc = GNNNodeEva(self.data, idx_test, self.gnn, self.answering,self.output_dim, self.device)                           
-                  elif self.prompt_type == 'GPPT':
-                        _, _, _, _, outs_train = GPPTEva(self.data, idx_train, self.gnn, self.prompt, self.output_dim, self.device)                
-                        test_acc, f1, roc, prc, outs_test = GPPTEva(self.data, idx_test, self.gnn, self.prompt, self.output_dim, self.device)                
-                  elif self.prompt_type == 'All-in-one':
-                        _, _, _, _, outs_train = AllInOneEva(train_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)               
-                        _, _, _, _, outs_test = AllInOneEva(test_loader, self.prompt, self.gnn, self.answering, self.output_dim, self.device)                                           
-                            
-                  elif self.prompt_type in ['GPF', 'GPF-plus']:
-                        # ipdb.set_trace()
-                        _, _, _, _, outs_train = GPFEva(train_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)                                                         
-                        _, _, _, _, outs_test = GPFEva(test_loader, self.gnn, self.prompt, self.answering, self.output_dim, self.device)  
-                        #print(torch.max(outs_train, dim=1))
-                        # train_correct_class = [train_dataset[i].y for i in range(len(train_dataset))]
-                        # train_correct_class_prob = [outs_train[i][train_dataset[i].y].item() for i in range(len(outs_train))]
-                  
-                        # test_correct_class = [test_dataset[i].y for i in range(len(test_dataset))]
-                        # test_correct_class_prob = [outs_test[i][test_dataset[i].y].item() for i in range(len(outs_test))]
-                        # print(torch.max(outs_test, dim=1))     
-                                                                         
-                  elif self.prompt_type =='Gprompt':
-                        _, _, _, _, outs_train = GpromptEva(train_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
-                        _, _, _, _, outs_test = GpromptEva(test_loader, self.gnn, self.prompt, center, self.output_dim, self.device)
-                  elif self.prompt_type == 'MultiGprompt':
-                        prompt_feature = self.feature_prompt(self.features)
-                        test_acc, f1, roc, prc = MultiGpromptEva(test_embs, test_lbls, idx_test, prompt_feature, self.Preprompt, self.DownPrompt, self.sp_adj, self.output_dim, self.device)  
-                  
-                  # train attack model
-                  # generate attack feature
-                  
-                  pos_labels = torch.ones(outs_train.shape[0])
-                  neg_labels = torch.zeros(outs_test.shape[0])
-                  outs_data = torch.cat((outs_train, outs_test), dim=0)
-                  outs_labels = torch.cat((pos_labels, neg_labels), dim = 0)
-                  # ipdb.set_trace()
-                  # the number of testing dataset is significantly higher than that of the training dataset --> adjust the number of training dataset and testing dataset for the shadow prompt
+            outs_train_data = torch.cat((outs_train[:int(len(outs_train)*0.5)], outs_test[:int(len(outs_test)*0.5)]), dim=0)
+            outs_test_data = torch.cat((outs_train[int(len(outs_train)*0.5):], outs_test[int(len(outs_test)*0.5):]), dim=0)
+            outs_train_labels = torch.cat((pos_labels[:int(len(outs_train)*0.5)], neg_labels[:int(len(outs_test)*0.5)]), dim=0)
+            outs_test_labels = torch.cat((pos_labels[int(len(outs_train)*0.5):], neg_labels[int(len(outs_test)*0.5):]), dim=0)
 
-                  outs_train_data = torch.cat((outs_train[:int(len(outs_train)*0.5)], outs_test[:int(len(outs_test)*0.5)]), dim=0)
-                  outs_test_data = torch.cat((outs_train[int(len(outs_train)*0.5):], outs_test[int(len(outs_test)*0.5):]), dim=0)
-                  outs_train_labels = torch.cat((pos_labels[:int(len(outs_train)*0.5)], neg_labels[:int(len(outs_test)*0.5)]), dim=0)
-                  outs_test_labels = torch.cat((pos_labels[int(len(outs_train)*0.5):], neg_labels[int(len(outs_test)*0.5):]), dim=0)
+            attack_train_data = torch.utils.data.TensorDataset(outs_train_data, outs_train_labels) 
+            attack_test_data = torch.utils.data.TensorDataset(outs_test_data, outs_test_labels) 
+            attack_train_data_loader = torch.utils.data.DataLoader(attack_train_data, batch_size=32, shuffle=True)
+            attack_test_data_loader = torch.utils.data.DataLoader(attack_test_data, batch_size=32, shuffle=False)
 
-                  attack_train_data = torch.utils.data.TensorDataset(outs_train_data, outs_train_labels) 
-                  attack_test_data = torch.utils.data.TensorDataset(outs_test_data, outs_test_labels) 
-                  attack_train_data_loader = torch.utils.data.DataLoader(attack_train_data, batch_size=32, shuffle=True)
-                  attack_test_data_loader = torch.utils.data.DataLoader(attack_test_data, batch_size=32, shuffle=False)
-
-                  optimizer = torch.optim.Adam(self.attack_model.parameters(), lr=0.001)  # 0.01 #0.00001
-                  train_acc, train_loss = self.attack_train(attack_train_data_loader, optimizer, epochs=300)
-                  test_accuracy = self.attack_eval(attack_test_data_loader)
+            optimizer = torch.optim.Adam(self.attack_model.parameters(), lr=0.001)  # 0.01 #0.00001
+            train_acc, train_loss = self.attack_train(attack_train_data_loader, optimizer, epochs=300)
+            test_accuracy = self.attack_eval(attack_test_data_loader)
 
             return  self.attack_model, test_accuracy
 
