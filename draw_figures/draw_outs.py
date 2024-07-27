@@ -100,7 +100,7 @@ def draw_bar(outs_train_100, outs_test_100, pre_train_type, prompt_type, dataset
         ax.set_xlabel('Target prediction probability')
     ax.set_title('Train & Test Distribution ({}_{}_{}_{}+{}+{}shot_100)'.format(pre_train_type, prompt_type, pre_train_data, dataset, model, shot_num))
     ax.legend(loc='upper left')
-    ax.text(0.1, 5.0, 'train acc: {:.4f} \n test acc: {:.4f}'.format(acc_train, acc_test))
+    ax.text(0.1, 5.0, 'train acc: {:.4f} \n test acc: {:.4f}'.format(acc_train, acc_test)) # position for outs: (0.1, 5.0); for logit_scaling: (-10, 0.02)
 
     # plt.show()
     if logit_scaling:
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     use_different_dataset = True
     shot_nums = range(1, 6)
     pre_train_type = ['GraphCL', 'SimGRACE', 'GraphMAE', 'DGI', 'Edgepred_GPPT', 'Edgepred_Gprompt']
-    prompt_type = 'GPF-plus'
+    prompt_type = ['GPF-plus', 'All-in-one']
     model='GCN'
     for shot_num in shot_nums:
         for ptd in pre_train_data:
@@ -129,20 +129,21 @@ if __name__ == "__main__":
                 path = "./Experiment_diff_dataset/outs/Node/{}shot/{}_{}".format(shot_num, dataset, ptd)
             else:
                 path = "./Experiment/outs/Node/{}shot/{}_{}".format(shot_num, dataset, ptd)
-            for ptt in pre_train_type[2:3]:
-                outs_train_path = os.path.join(path, "train/{}_{}_{}.txt".format(ptt, prompt_type, model))
-                outs_train_100 = read_data(outs_train_path, shot_num)
+            for ptt in pre_train_type[3:]:
+                for pt in prompt_type[1:]:
+                    outs_train_path = os.path.join(path, "train/{}_{}_{}.txt".format(ptt, pt, model))
+                    outs_train_100 = read_data(outs_train_path, shot_num)
 
-                outs_test_path = os.path.join(path, "test/{}_{}_{}.txt".format(ptt, prompt_type, model))
-                outs_test_100 = read_data(outs_test_path, shot_num)
-                # accurate accuracy
+                    outs_test_path = os.path.join(path, "test/{}_{}_{}.txt".format(ptt, pt, model))
+                    outs_test_100 = read_data(outs_test_path, shot_num)
+                    # accurate accuracy
 
 
-                # outs_train = torch.load(os.path.join(path, "train/{}_{}_{}.txt".format(pre_train_type, prompt_type, model)))
-                # outs_test = torch.load(os.path.join(path, "{}_{}_{}_outs_test.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
-                # labels_train = torch.load(os.path.join(path, "{}_{}_{}_labels_train.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
-                # labels_test = torch.load(os.path.join(path, "{}_{}_{}_labels_test.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
-                draw_bar(outs_train_100, outs_test_100, ptt, prompt_type, dataset=dataset, pre_train_data = ptd, model=model, shot_num=shot_num, logit_scaling=False)
+                    # outs_train = torch.load(os.path.join(path, "train/{}_{}_{}.txt".format(pre_train_type, prompt_type, model)))
+                    # outs_test = torch.load(os.path.join(path, "{}_{}_{}_outs_test.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
+                    # labels_train = torch.load(os.path.join(path, "{}_{}_{}_labels_train.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
+                    # labels_test = torch.load(os.path.join(path, "{}_{}_{}_labels_test.pt".format(pre_train_type, prompt_type, model)), map_location='cpu')
+                    draw_bar(outs_train_100, outs_test_100, ptt, pt, dataset=dataset, pre_train_data = ptd, model=model, shot_num=shot_num, logit_scaling=False)
 
 def draw_figure(data_avg_adv, data_std_adv, data_avg_ben, data_std_ben, dataset, recover_from):
     filename = '{}_{}.pdf'.format(dataset, model)
